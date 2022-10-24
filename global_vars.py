@@ -1,0 +1,2 @@
+BUFFER_CAPACITY = 16384 # 2**14
+PAGE_SIZE = 4096        # 2**12
