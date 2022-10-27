@@ -1,3 +1,13 @@
+class ReadDiskError(Exception):
+    ''' Raised when failed to read a page from disk.
+    '''
+    
+    
+class WriteDiskError(Exception):
+    ''' Raised when failed to write a page to disk.
+    '''
+
+
 class CreateFileError(Exception):
     ''' Raised when failed to create a file.
     '''

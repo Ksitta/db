@@ -13,9 +13,10 @@ class LRUList:
             self.linked_list.insert_front(idx)
 
     
-    def find(self):
+    def find(self) -> int:
         ''' Find the least recently used node by get_front().
             Should call access() to move it to the back.
+        return: int, the index.
         '''
         return self.linked_list.get_front()
     
