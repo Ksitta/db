@@ -1,16 +1,12 @@
 #!/usr/bin/python3
 
+import sys
 from antlr4 import *
-from parser.SQLLexer import SQLLexer
-from parser.SQLParser import SQLParser
-from parser.SQLVisitor import SQLVisitor
+from sql_parser.SQLLexer import SQLLexer
+from sql_parser.SQLParser import SQLParser
+from sql_parser.DBVisitor import DBVisitor
 
-
-class DbVisitor(SQLVisitor):
-    pass
-
-
-def parser_command(line) -> float:
+def parser_command(line):
     input_stream = InputStream(line)
 
     # lexing
@@ -22,11 +18,11 @@ def parser_command(line) -> float:
     tree = parser.program()
 
     # use customized visitor to traverse AST
-    visitor = DbVisitor()
+    visitor = DBVisitor()
     try:
         visitor.visit(tree)
     except:
-        print("error argument")
+        print()
 
 if __name__ == '__main__':
     while True:
