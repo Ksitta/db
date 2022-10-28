@@ -1,8 +1,12 @@
-class SM_Manager():
-    _using_db : str
+from singleton import singleton
 
-    def __init__(self, ixm, rmm):
-        pass
+@singleton
+class SM_Manager():
+    _using_db = ""
+    _db_names = list()
+
+    def __init__(self):
+        self._using_db = ""
 
     def open_db(self, db_name : str):
         if (self._using_db != ""):

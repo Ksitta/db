@@ -19,10 +19,10 @@ def parser_command(line):
 
     # use customized visitor to traverse AST
     visitor = DBVisitor()
-    try:
-        visitor.visit(tree)
-    except:
-        print()
+    # try:
+    visitor.visit(tree)
+    # except:
+    #     print("error")
 
 if __name__ == '__main__':
     while True:

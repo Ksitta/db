@@ -10,7 +10,7 @@ class DBVisitor(SQLVisitor):
         print(ctx)
 
     def visitUse_db(self, ctx : SQLParser.Use_dbContext):
-        SM_Manager.open_db(ctx.Identifier())
+        SM_Manager().open_db(ctx.Identifier())
 
     def visitDrop_db():
         pass
