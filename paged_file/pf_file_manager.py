@@ -67,18 +67,7 @@ class PF_FileManager:
         return: int, the buffer id.
         '''
         buffer_id = self.lru_list.find()
-        file_id = self.buffer_to_file_id[buffer_id]
-        page_id = self.buffer_to_page_id[buffer_id]
-        if file_id != cf.INVALID:
-            self.pair_to_buffer_id.pop((file_id, page_id), cf.INVALID)
-            self.buffer_to_file_id[buffer_id] = cf.INVALID
-            self.buffer_to_page_id[buffer_id] = cf.INVALID
-            if file_id in self.buffered_pages:
-                if buffer_id in self.buffered_pages[file_id]:
-                    self.buffered_pages[file_id].remove(buffer_id)
-                if len(self.buffered_pages[file_id]) == 0:
-                    self.buffered_pages.pop(file_id, {})
-        self.dirty[buffer_id] = False
+        self._dealloc_buffer(buffer_id)
         self.lru_list.access(buffer_id)
         return buffer_id
         
@@ -96,12 +85,12 @@ class PF_FileManager:
         self.pair_to_buffer_id.pop((file_id, page_id), cf.INVALID)
         self.buffer_to_file_id[buffer_id] = cf.INVALID
         self.buffer_to_page_id[buffer_id] = cf.INVALID
+        self.lru_list.free(buffer_id)
         if file_id in self.buffered_pages:
             if buffer_id in self.buffered_pages[file_id]:
                 self.buffered_pages[file_id].remove(buffer_id)
             if len(self.buffered_pages[file_id]) == 0:
                 self.buffered_pages.pop(file_id, {})
-        self.lru_list.free(buffer_id)
     
     
     def create_file(self, file_name:str):
@@ -166,9 +155,9 @@ class PF_FileManager:
         '''
         buffer_ids = self.buffered_pages.get(file_id, {})
         for buffer_id in buffer_ids:
-            if not self.dirty[buffer_id]: continue
             page_id = self.buffer_to_page_id[buffer_id]
-            self._write_disk(file_id, page_id, self.buffer[buffer_id].tobytes())
+            if self.dirty[buffer_id]:
+                self._write_disk(file_id, page_id, self.buffer[buffer_id].tobytes())
             self.dirty[buffer_id] = False
             self.pair_to_buffer_id.pop((file_id, page_id), cf.INVALID)
             self.buffer_to_file_id[buffer_id] = cf.INVALID
@@ -255,6 +244,7 @@ class PF_FileManager:
                 self.buffered_pages[file_id] = set()
             self.buffered_pages[file_id].add(buffer_id)
             return data
+        self.lru_list.access(buffer_id)
         return self.buffer[buffer_id].tobytes()
             
     
