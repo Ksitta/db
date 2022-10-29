@@ -10,18 +10,18 @@ class DBVisitor(SQLVisitor):
         SM_Manager().show_dbs()
 
     def visitUse_db(self, ctx : SQLParser.Use_dbContext):
-        SM_Manager().open_db(ctx.Identifier())
+        SM_Manager().open_db(str(ctx.Identifier()))
 
     def visitDrop_db():
         pass
         
     def visitCreate_table(self, ctx: SQLParser.Create_tableContext):
         attrs : list = self.visitField_list(ctx.field_list())
-        SM_Manager().create_table(ctx.Identifier(), attrs)
+        SM_Manager().create_table(str(ctx.Identifier()), attrs)
         # pass
 
     def visitDescribe_table(self, ctx: SQLParser.Describe_tableContext):
-        SM_Manager().describe_table(ctx.Identifier())
+        SM_Manager().describe_table(str(ctx.Identifier()))
 
     def visitField_list(self, ctx: SQLParser.Field_listContext):
         print(ctx.getChildCount())
@@ -36,7 +36,7 @@ class DBVisitor(SQLVisitor):
     def visitNormal_field(self, ctx: SQLParser.Normal_fieldContext):
         print(ctx.Identifier())
 
-    def visitPrimary_key(self, ctx: SQLParser.Primary_keyContext):
+    def visitPrimary_key(self, ctx: SQLParser.Primary_key_fieldContext):
         pass
 
     def visitForeign_key_field(self, ctx: SQLParser.Foreign_key_fieldContext):

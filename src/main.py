@@ -2,6 +2,7 @@
 
 import sys
 from antlr4 import *
+from sm_manager.sm_manager import SM_Manager
 from sql_parser.SQLLexer import SQLLexer
 from sql_parser.SQLParser import SQLParser
 from sql_parser.DBVisitor import DBVisitor
@@ -19,12 +20,14 @@ def parser_command(line):
 
     # use customized visitor to traverse AST
     visitor = DBVisitor()
+    
     try:
         visitor.visit(tree)
     except Exception as e:
-        print(e.args)
+        print(repr(e))
 
 if __name__ == '__main__':
+    SM_Manager()
     while True:
         print(">>> ", end='')
         line = input()
