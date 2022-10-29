@@ -1,12 +1,11 @@
+from errors.err_sm_manager import *
 from singleton import singleton
 
 @singleton
 class SM_Manager():
-    _using_db = ""
-    _db_names = list()
-
     def __init__(self):
-        self._using_db = ""
+        self._using_db : str = ""
+        self._db_names : list = list()
 
     def open_db(self, db_name : str):
         if (self._using_db != ""):
@@ -20,11 +19,21 @@ class SM_Manager():
         self._using_db = ""
         pass
 
-    def create_table(self, rel_name: str,attdefount : int, attributes):
+    def show_dbs():
         pass
 
+    def create_table(self, rel_name: str, attributes):
+        if(self._using_db == ""):
+            raise NoUsingDatabaseError
+
+    def describe_table(self, rel_name : str):
+        if(self._using_db == ""):
+            raise NoUsingDatabaseError
+
+
     def drop_table(self, rel_name : str):
-        pass
+        if(self._using_db == ""):
+            raise NoUsingDatabaseError
 
     def create_index(self, rel_name : str, attr_name : str):
         pass
