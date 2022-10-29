@@ -5,10 +5,11 @@ from typing import NoReturn, List, Tuple, Dict, Set
 
 import config.pf_config as cf
 from errors.err_paged_file import *
+from utils.singleton import singleton
 from utils.lru_list import LRUList
 
 
-
+@singleton
 class PF_FileManager:
     ''' The paged file manager.
     '''
