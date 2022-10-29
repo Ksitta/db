@@ -4,7 +4,7 @@ from sm_manager.sm_manager import SM_Manager
 
 class DBVisitor(SQLVisitor):
     def visitCreate_db(self, ctx : SQLParser.Create_dbContext):
-        pass
+        SM_Manager().create_db(str(ctx.Identifier()))
     
     def visitShow_dbs(self, ctx : SQLParser.Show_dbsContext):
         SM_Manager().show_dbs()

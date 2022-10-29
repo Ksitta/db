@@ -27,10 +27,16 @@ class SM_Manager():
         if (self._using_db != ""):
             self.close_db()
         if (db_name not in self._db_names):
-            raise NonExistDataBaseError(((f'Database {db_name} is not existed')))
+            raise DataBaseNotExistError(((f'Database {db_name} is not existed')))
         self._using_db = db_name
         os.chdir(db_name)
         pass
+
+    def create_db(self, db_name : str):
+        if (db_name in self._db_names):
+            raise DataBaseExistError(((f'Database {db_name} existed')))
+        os.mkdir(os.path.join(self._base_dir, db_name))
+        self._db_names.add(db_name)
 
     def close_db(self):
         if (self._using_db == ""):
