@@ -1,27 +1,27 @@
 from sql_parser.SQLVisitor import SQLVisitor
 from sql_parser.SQLParser import SQLParser
-from sm_manager.sm_manager import SM_Manager
+from sm_manager.sm_manager import sm_manager
 
 class DBVisitor(SQLVisitor):
     def visitCreate_db(self, ctx : SQLParser.Create_dbContext):
         pass
     
     def visitShow_dbs(self, ctx : SQLParser.Show_dbsContext):
-        SM_Manager().show_dbs()
+        sm_manager.show_dbs()
 
     def visitUse_db(self, ctx : SQLParser.Use_dbContext):
-        SM_Manager().open_db(str(ctx.Identifier()))
+        sm_manager.open_db(str(ctx.Identifier()))
 
-    def visitDrop_db():
-        pass
+    def visitDrop_db(self, ctx : SQLParser.Drop_dbContext):
+        sm_manager.drop_db(str(ctx.Identifier()))
         
     def visitCreate_table(self, ctx: SQLParser.Create_tableContext):
         attrs : list = self.visitField_list(ctx.field_list())
-        SM_Manager().create_table(str(ctx.Identifier()), attrs)
+        sm_manager.create_table(str(ctx.Identifier()), attrs)
         # pass
 
     def visitDescribe_table(self, ctx: SQLParser.Describe_tableContext):
-        SM_Manager().describe_table(str(ctx.Identifier()))
+        sm_manager.describe_table(str(ctx.Identifier()))
 
     def visitField_list(self, ctx: SQLParser.Field_listContext):
         print(ctx.getChildCount())

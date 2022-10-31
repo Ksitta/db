@@ -1,9 +1,7 @@
 from errors.err_sm_manager import *
-from utils.singleton import singleton
 import os
 from config.sm_config import *
 
-@singleton
 class SM_Manager():
     def __init__(self):
         self._using_db : str = ""
@@ -65,3 +63,6 @@ class SM_Manager():
     
     def set(self, param_name : str, value : str):
         pass
+
+
+sm_manager = SM_Manager()
