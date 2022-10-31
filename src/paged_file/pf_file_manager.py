@@ -5,11 +5,9 @@ from typing import NoReturn, List, Tuple, Dict, Set
 
 import config.pf_config as cf
 from errors.err_paged_file import *
-from utils.singleton import singleton
 from utils.lru_list import LRUList
 
 
-@singleton
 class PF_FileManager:
     ''' The paged file manager.
     '''
@@ -273,6 +271,7 @@ class PF_FileManager:
         self.buffer[buffer_id] = np.frombuffer(data[:cf.PAGE_SIZE], dtype=np.uint8, count=cf.PAGE_SIZE)
         self.dirty[buffer_id] = True
     
+pf_manager = PF_FileManager()
 
 if __name__ == '__main__':
     pass

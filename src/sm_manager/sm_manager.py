@@ -1,7 +1,7 @@
 from errors.err_sm_manager import *
 import os
 from config.sm_config import *
-from paged_file.pf_file_manager import PF_FileManager
+from paged_file.pf_file_manager import pf_manager
 
 class SM_Manager():
     def __init__(self):
@@ -52,7 +52,6 @@ class SM_Manager():
         if (rel_name in self._tables):
             raise TableExistsError(rel_name)
         
-        pf_manager = PF_FileManager()
         pf_manager.create_file(rel_name + TABLE_DATA_SUFFIX)
         pf_manager.create_file(rel_name + TABLE_META_SUFFIX)
         
@@ -80,7 +79,7 @@ class SM_Manager():
             raise NoUsingDatabaseError((f'No database is opened'))
         if (rel_name not in self._tables):
             raise TableNotExistsError(rel_name)
-        pf_manager = PF_FileManager()
+            
         pf_manager.close_file(self._table2datafd[rel_name])
         pf_manager.close_file(self._metafd2table[rel_name])
         pf_manager.remove_file(rel_name + TABLE_DATA_SUFFIX)
