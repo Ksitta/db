@@ -1,10 +1,11 @@
 from sql_parser.SQLVisitor import SQLVisitor
 from sql_parser.SQLParser import SQLParser
 from sm_manager.sm_manager import sm_manager
+from src.type.type import FloatType, IntType, TypeEnum, VarcharType
 
 class DBVisitor(SQLVisitor):
     def visitCreate_db(self, ctx : SQLParser.Create_dbContext):
-        SM_Manager().create_db(str(ctx.Identifier()))
+        sm_manager.create_db(str(ctx.Identifier()))
     
     def visitShow_dbs(self, ctx : SQLParser.Show_dbsContext):
         sm_manager.show_dbs()
@@ -23,6 +24,9 @@ class DBVisitor(SQLVisitor):
     def visitDescribe_table(self, ctx: SQLParser.Describe_tableContext):
         sm_manager.describe_table(str(ctx.Identifier()))
 
+    def visitDrop_table(self, ctx: SQLParser.Drop_tableContext):
+        sm_manager.drop_table(str(ctx.Identifier()))
+
     def visitField_list(self, ctx: SQLParser.Field_listContext):
         print(ctx.getChildCount())
         attrs = list()
@@ -34,7 +38,16 @@ class DBVisitor(SQLVisitor):
         ctx.accept(self)
 
     def visitNormal_field(self, ctx: SQLParser.Normal_fieldContext):
-        print(ctx.Identifier())
+        self.visitType_(ctx.type_)
+        
+    def visitType_(self, ctx: SQLParser.Type_Context):
+        text = ctx.getText()
+        if(text == 'INT'):
+            return IntType()
+        if(text == 'FLOAT'):
+            return FloatType()
+        if(text == 'VARCHAR'):
+            return VarcharType(int(ctx.getChild(2).getText()))
 
     def visitPrimary_key(self, ctx: SQLParser.Primary_key_fieldContext):
         pass

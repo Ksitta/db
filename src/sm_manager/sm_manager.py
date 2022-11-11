@@ -41,6 +41,18 @@ class SM_Manager():
             return
         self._using_db = ""
         os.chdir(self._base_dir)
+        
+        data_fd : int = self._table2datafd[self._using_db + TABLE_DATA_SUFFIX]
+        meta_fd : int = self._table2metafd[self._using_db + TABLE_META_SUFFIX]
+        
+        pf_manager.close_file(data_fd)
+        pf_manager.close_file(meta_fd)
+        
+        self._table2datafd.pop(self._using_db + TABLE_DATA_SUFFIX)
+        self._table2metafd.pop(self._using_db + TABLE_META_SUFFIX)
+        
+        self._fd2table.pop(data_fd)
+        self._fd2table.pop(meta_fd)
         pass
 
     def show_dbs():
@@ -86,11 +98,11 @@ class SM_Manager():
         pf_manager.remove_file(rel_name + TABLE_META_SUFFIX)
                 
         self._tables.remove(rel_name)
-        self._fd2table.remove(self._table2datafd[rel_name])
-        self._fd2table.remove(self._table2metafd[rel_name])
+        self._fd2table.pop(self._table2datafd[rel_name])
+        self._fd2table.pop(self._table2metafd[rel_name])
         self._tables.remove(rel_name)
-        self._table2metafd.remove(rel_name)
-        self._table2datafd.remove(rel_name)
+        self._table2metafd.pop(rel_name)
+        self._table2datafd.pop(rel_name)
         
 
     def create_index(self, rel_name : str, attr_name : str):
