@@ -20,6 +20,7 @@ class SM_Manager():
         files = os.listdir(".")
         for file in files:
             self._db_names.add(file)
+            
 
     def open_db(self, db_name : str):
         if (self._using_db != ""):
@@ -28,13 +29,18 @@ class SM_Manager():
             raise DataBaseNotExistError(((f'Database {db_name} is not existed')))
         self._using_db = db_name
         os.chdir(db_name)
-        pass
+        files = os.listdir(".")
+        for file in files:
+            if(file.endswith(TABLE_DATA_SUFFIX)):
+                self._tables.add(file[:-len(TABLE_DATA_SUFFIX)])
+    
 
     def create_db(self, db_name : str):
         if (db_name in self._db_names):
             raise DataBaseExistError(((f'Database {db_name} existed')))
         os.mkdir(os.path.join(self._base_dir, db_name))
         self._db_names.add(db_name)
+        
 
     def close_db(self):
         if (self._using_db == ""):
@@ -42,21 +48,21 @@ class SM_Manager():
         self._using_db = ""
         os.chdir(self._base_dir)
         
-        data_fd : int = self._table2datafd[self._using_db + TABLE_DATA_SUFFIX]
-        meta_fd : int = self._table2metafd[self._using_db + TABLE_META_SUFFIX]
+        for each_fd in self._table2datafd.keys():
+            pf_manager.close_file(each_fd)
+        for each_fd in self._table2metafd.keys():
+            pf_manager.close_file(each_fd)
+
+        self._table2datafd.clear()
+        self._table2metafd.clear()
+        self._tables.clear()
+        self._fd2table.clear()
         
-        pf_manager.close_file(data_fd)
-        pf_manager.close_file(meta_fd)
-        
-        self._table2datafd.pop(self._using_db + TABLE_DATA_SUFFIX)
-        self._table2metafd.pop(self._using_db + TABLE_META_SUFFIX)
-        
-        self._fd2table.pop(data_fd)
-        self._fd2table.pop(meta_fd)
-        pass
 
     def show_dbs():
+        
         pass
+    
 
     def create_table(self, rel_name: str, attributes):
         if(self._using_db == ""):
@@ -98,9 +104,10 @@ class SM_Manager():
         pf_manager.remove_file(rel_name + TABLE_META_SUFFIX)
                 
         self._tables.remove(rel_name)
+        
         self._fd2table.pop(self._table2datafd[rel_name])
         self._fd2table.pop(self._table2metafd[rel_name])
-        self._tables.remove(rel_name)
+        
         self._table2metafd.pop(rel_name)
         self._table2datafd.pop(rel_name)
         
@@ -108,17 +115,22 @@ class SM_Manager():
     def create_index(self, rel_name : str, attr_name : str):
         pass
     
+    
     def drop_index(self, rel_name : str, attr_name : str):
         pass
+    
     
     def load(self, rel_name : str, file_name : str):
         pass
     
+    
     def help(self):
         pass
     
+    
     def help(self, rel_name : str):
         pass
+    
     
     def set(self, param_name : str, value : str):
         pass
