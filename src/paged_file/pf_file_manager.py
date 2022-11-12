@@ -3,7 +3,7 @@ import struct
 import numpy as np
 from typing import NoReturn, List, Tuple, Dict, Set
 
-import config.pf_config as cf
+import config as cf
 from errors.err_paged_file import *
 from utils.lru_list import LRUList
 

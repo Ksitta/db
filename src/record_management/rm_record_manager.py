@@ -3,7 +3,7 @@ import sys
 import time
 import numpy as np
 
-import config.pf_config as cf
+import config as cf
 from paged_file.pf_file_manager import PF_FileManager
 from rm_file_handle import RM_FileHandle
 
@@ -17,8 +17,11 @@ class RM_RecordManager:
         self.file_manager = PF_FileManager()
         
         
-    def create_file(self, file_name:str, record_size:int):
+    def create_file(self, file_name:str):
         ''' Create a file with fixed record size.
+        args:
+            file_name: str, the full file path without ext, like 'dir/table',
+                the same for other interfaces in RM_RecordManager.
         '''
         
         

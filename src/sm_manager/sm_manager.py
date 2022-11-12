@@ -1,6 +1,6 @@
 from errors.err_sm_manager import *
 import os
-from config.sm_config import *
+from config import *
 from paged_file.pf_file_manager import pf_manager
 
 class SM_Manager():

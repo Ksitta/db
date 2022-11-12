@@ -2,7 +2,7 @@ import os
 from matplotlib.offsetbox import PaddedBox
 import numpy as np
 
-import config.pf_config as cf
+import config as cf
 from paged_file.pf_file_manager import PF_FileManager
 
 
