@@ -17,6 +17,8 @@ class Table():
     _name: str
     _meta_fd: int
     _data_fd: int
+    
+    # meta use to store table info
     _columns: list
     _record_len: int
     _record_cnt: int
@@ -26,16 +28,24 @@ class Table():
         self._meta_fd = meta_fd
         self._data_fd = data_fd
         self._load()
-        
-    def __init__(self, name : str, attrs : list, meta_fd : int, data_fd : int) -> None:
+
+    def __init__(self, name: str, attrs: list, meta_fd: int, data_fd: int) -> None:
         self._name = name
         self._meta_fd = meta_fd
         self._data_fd = data_fd
-        
+
     def __del__(self):
         self._store()
-        
 
+    def insert_record(self, record):
+        pass
+    
+    def delete_record(self, rid):
+        pass
+    
+    def update_record(self, rid, record):
+        pass
+        
     def _load(self):
         metas: bytes = pf_manager.read_page(self._meta_fd, 0)
         self._record_len = int.from_bytes(
@@ -49,7 +59,7 @@ class Table():
         for i in range(page_num):
             metas += pf_manager.read_page(self._meta_fd, i + 1)
 
-        pos : int = 0
+        pos: int = 0
         for i in range(col_cnt):
             type_num = int.from_bytes(metas[pos:pos + 4], byteorder='little')
             pos += 4
