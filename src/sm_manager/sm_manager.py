@@ -2,6 +2,7 @@ from errors.err_sm_manager import *
 import os
 from config.sm_config import *
 from paged_file.pf_file_manager import pf_manager
+from table.table import Table
 
 class SM_Manager():
     def __init__(self):
@@ -28,7 +29,7 @@ class SM_Manager():
         if (db_name not in self._db_names):
             raise DataBaseNotExistError(((f'Database {db_name} is not existed')))
         self._using_db = db_name
-        os.chdir(db_name)
+        os.chdir(os.path.join(self._base_dir,db_name))
         files = os.listdir(".")
         for file in files:
             if(file.endswith(TABLE_DATA_SUFFIX)):
@@ -52,16 +53,14 @@ class SM_Manager():
             pf_manager.close_file(each_fd)
         for each_fd in self._table2metafd.keys():
             pf_manager.close_file(each_fd)
-
         self._table2datafd.clear()
         self._table2metafd.clear()
         self._tables.clear()
         self._fd2table.clear()
         
 
-    def show_dbs():
-        
-        pass
+    def show_dbs(self):
+        return self._db_names
     
 
     def create_table(self, rel_name: str, attributes):
@@ -82,7 +81,7 @@ class SM_Manager():
         self._table2datafd[rel_name] = data_fd
         self._table2metafd[rel_name] = meta_fd
 
-        # self._name2table[rel_name] = Table()
+        self._name2table[rel_name] = Table(rel_name, attributes, meta_fd, data_fd)
         
 
     def describe_table(self, rel_name : str):
