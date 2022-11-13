@@ -1,6 +1,6 @@
 import numpy as np
 
-from rm_rid import RM_Rid
+from record_management.rm_rid import RM_Rid
 
 
 class RM_Record:

@@ -5,7 +5,7 @@ import numpy as np
 
 import config as cf
 from paged_file.pf_file_manager import pf_manager
-from rm_file_handle import RM_FileHandle
+from record_management.rm_file_handle import RM_FileHandle
 
 
 class RM_RecordManager:
@@ -50,6 +50,9 @@ class RM_RecordManager:
         pf_manager.close_file(file_name + cf.TABLE_META_SUFFIX)
         pf_manager.close_file(file_name + cf.TABLE_DATA_SUFFIX)
         self.opened_files.pop(file_name, None)
+        
+        
+rm_manager = RM_RecordManager()
 
 
 if __name__ == '__main__':

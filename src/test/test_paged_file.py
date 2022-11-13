@@ -94,6 +94,7 @@ def test_data_structures():
 
 
 def test():
+    print(f'-------- Test paged file --------')
     test_alloc_buffer()
     test_lru()
     test_write_page()

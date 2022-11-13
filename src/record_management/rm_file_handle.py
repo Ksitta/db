@@ -3,9 +3,9 @@ import numpy as np
 
 import config as cf
 from paged_file.pf_file_manager import pf_manager
-from rm_rid import RM_Rid
-from rm_record import RM_Record
-from rm_page_header import RM_PageHeader
+from record_management.rm_rid import RM_Rid
+from record_management.rm_record import RM_Record
+from record_management.rm_page_header import RM_PageHeader
 from errors.err_record_management import *
 
 
@@ -106,7 +106,7 @@ class RM_FileHandle:
         first_page = pf_manager.read_page(self.meta_file_id, 0)
         (meta_page_number,) = struct.unpack(f'{cf.BYTE_ORDER}i', first_page[12:16].tobytes())
         meta_pages = [first_page]
-        for i in range(1, meta_pages):
+        for i in range(1, meta_page_number):
             meta_pages.append(pf_manager.read_page(self.meta_file_id, i))
         data = np.concatenate(meta_pages).tobytes()
         meta = dict()
