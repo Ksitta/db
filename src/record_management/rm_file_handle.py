@@ -52,10 +52,10 @@ class RM_FileHandle:
         '''
         
     
-    def insert_record(self, data:bytes) -> RM_Rid:
+    def insert_record(self, data:np.ndarray) -> RM_Rid:
         ''' Insert a record, return the allocated rid.
         args:
-            data: bytes, len >= record_size, will insert data[:record_size] as the record.
+            data: np.ndarray[(>=record_size,), uint8], will interpret data[:record_size] as a record.
         return:
             RM_Rid, the inserted position.
         '''
@@ -66,11 +66,11 @@ class RM_FileHandle:
         '''
         
     
-    def update_record(self, rid:RM_Rid, data:bytes) -> None:
+    def update_record(self, rid:RM_Rid, data:np.ndarray) -> None:
         ''' Update a record with new data on a specific rid.
         args:
             rid: RM_Rid, the record identifier to be updated.
-            data: bytes, len >= record_size, will interpret data[:record_size] as a record.
+            data: np.ndarray[(>=record_size,), uint8], will interpret data[:record_size] as a record.
         '''
     
 
