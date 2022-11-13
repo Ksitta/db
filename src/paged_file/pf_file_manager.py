@@ -1,7 +1,7 @@
 import os
 import struct
 import numpy as np
-from typing import NoReturn, List, Tuple, Dict, Set
+from typing import NoReturn, List, Tuple, Dict, Set, Union
 
 import config as cf
 from errors.err_paged_file import *
@@ -42,7 +42,7 @@ class PF_FileManager:
         data = os.read(file_id, cf.PAGE_SIZE)
         if len(data) < cf.PAGE_SIZE:
             raise ReadDiskError(f'Read page failed. Read bytes: {len(data)}.')
-        return np.frombuffer(data, dtype=np.uint8, count=cf.PAGE_SIZE)
+        return np.frombuffer(data, dtype=np.uint8, count=cf.PAGE_SIZE).copy()
             
     
     def _write_disk(self, file_id:int, page_id:int, data:np.ndarray):
@@ -90,6 +90,14 @@ class PF_FileManager:
                 self.buffered_pages[file_id].remove(buffer_id)
             if len(self.buffered_pages[file_id]) == 0:
                 self.buffered_pages.pop(file_id, {})
+                
+    
+    def get_page_cnt(self, file_id:int) -> int:
+        ''' Get the page cnt of a specific file.
+        '''
+        if file_id not in self.file_id_to_name:
+            raise GetPageCntError(f'File {file_id} has not been opened.')
+        return self.page_cnt[file_id]
     
     
     def create_file(self, file_name:str):
@@ -122,9 +130,14 @@ class PF_FileManager:
         return file_id
     
     
-    def close_file(self, file_id:int):
-        ''' Closed an opened file by its file id.
+    def close_file(self, file:Union[int,str]):
+        ''' Closed an opened file by its file id or file name.
+        args:
+            file: int or str, int for file_id, str for file_name.
         '''
+        file_id = file
+        if type(file) == str:
+            file_id = self.file_name_to_id.get(file, -1)
         if file_id not in self.file_id_to_name:
             raise CloseFileError(f'File {file_id} has not been opened.')
         self.flush_file(file_id)
@@ -241,7 +254,7 @@ class PF_FileManager:
             if file_id not in self.buffered_pages:
                 self.buffered_pages[file_id] = set()
             self.buffered_pages[file_id].add(buffer_id)
-            return np.frombuffer(data, dtype=np.uint8, count=cf.PAGE_SIZE)
+            return np.frombuffer(data, dtype=np.uint8, count=cf.PAGE_SIZE).copy()
         self.lru_list.access(buffer_id)
         return self.buffer[buffer_id].copy()
             
