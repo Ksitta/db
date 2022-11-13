@@ -137,7 +137,7 @@ class PF_FileManager:
         '''
         file_id = file
         if type(file) == str:
-            file_id = self.file_name_to_id.get(file, -1)
+            file_id = self.file_name_to_id.get(file, cf.INVALID)
         if file_id not in self.file_id_to_name:
             raise CloseFileError(f'File {file_id} has not been opened.')
         self.flush_file(file_id)

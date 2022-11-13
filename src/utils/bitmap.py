@@ -1,5 +1,6 @@
 import numpy as np
 
+import config as cf
 
 class Bitmap:
     ''' The general bitmap data structure.
@@ -59,16 +60,16 @@ class Bitmap:
     def first_free(self) -> int:
         ''' Search the not unoccupied bit, return its index.
         return:
-            int, the first free index, if not found, return -1.
+            int, the first free index, if not found, return INVALID.
         '''
-        res = -1
+        res = cf.INVALID
         for byte_no, byte in enumerate(self.data):
             if res >= 0 or byte == 255: continue
             for bit_no in range(8):
                 if (byte & np.uint8(1<<bit_no)) == 0:
                     res = byte_no * 8 + bit_no
                     break
-        if res >= self.capacity: return -1
+        if res >= self.capacity: return cf.INVALID
         return res
         
     

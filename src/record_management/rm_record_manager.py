@@ -49,7 +49,8 @@ class RM_RecordManager:
         '''
         pf_manager.close_file(file_name + cf.TABLE_META_SUFFIX)
         pf_manager.close_file(file_name + cf.TABLE_DATA_SUFFIX)
-        self.opened_files.pop(file_name, None)
+        handle:RM_FileHandle = self.opened_files.pop(file_name, None)
+        if handle: handle.is_opened = False
         
         
 rm_manager = RM_RecordManager()

@@ -26,7 +26,7 @@ def test_meta():
     ]}
     rm_manager.create_file(file_name)
     handle:RM_FileHandle = rm_manager.open_file(file_name)
-    handle.write_meta(meta)
+    handle.init_meta(meta)
     read_meta = handle.read_meta()
     assert read_meta['record_per_page'] == 1
     assert read_meta['bitmap_size'] == 1

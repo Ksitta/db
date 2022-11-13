@@ -8,7 +8,7 @@ class RM_PageHeader:
     ''' Stores the page header info.
     '''
     
-    def __init__(self, page_lsn:int=-1, next_free=-1):
+    def __init__(self, page_lsn:int=cf.INVALID, next_free=cf.INVALID):
         self.page_lsn = page_lsn
         self.next_free = next_free
         
