@@ -54,7 +54,7 @@ class DBVisitor(SQLVisitor):
             self._type_size = int(ctx.Integer().getText())
             
     def visitPrimary_key_field(self, ctx: SQLParser.Primary_key_fieldContext):
-        idents = ctx.identifiers().accept(self)
+        self._idents = ctx.identifiers().accept(self)
 
     def visitIdentifiers(self, ctx: SQLParser.IdentifiersContext):
         idents: list = list()
@@ -64,4 +64,30 @@ class DBVisitor(SQLVisitor):
         return idents
 
     def visitForeign_key_field(self, ctx: SQLParser.Foreign_key_fieldContext):
+        self._constraint_name = str(ctx.Identifier(0))
+        self._target_table = str(ctx.Identifier(1))
+        self._local_idents = ctx.identifiers(0).accept(self)
+        self._target_idents = ctx.identifiers(1).accept(self)
+
+    def visitAlter_add_index(self, ctx: SQLParser.Alter_add_indexContext):
         pass
+    
+    def visitAlter_drop_index(self, ctx: SQLParser.Alter_drop_indexContext):
+        pass
+    
+    def visitAlter_table_drop_pk(self, ctx: SQLParser.Alter_table_drop_pkContext):
+        pass
+    
+    def visitAlter_table_drop_foreign_key(self, ctx: SQLParser.Alter_table_drop_foreign_keyContext):
+        pass
+    
+    def visitAlter_table_add_pk(self, ctx: SQLParser.Alter_table_add_pkContext):
+        pass
+    
+    def visitAlter_table_add_foreign_key(self, ctx: SQLParser.Alter_table_add_foreign_keyContext):
+        pass
+    
+    def visitAlter_table_add_unique(self, ctx: SQLParser.Alter_table_add_uniqueContext):
+        pass
+    
+    
