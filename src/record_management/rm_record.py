@@ -15,7 +15,6 @@ class RM_Record:
         self.rid = rid
         self.data = data
         
-    
     def __len__(self):
         return len(self.data)
     
