@@ -39,7 +39,7 @@ class DBVisitor(SQLVisitor):
     def visitNormal_field(self, ctx: SQLParser.Normal_fieldContext):
         ctx.type_().accept(self)
         ident = str(ctx.Identifier())
-        self._attrs.append(Column(ident, self._type, self._type_size))
+        # self._attrs.append(Column(ident, self._type, self._type_size))
 
     def visitType_(self, ctx: SQLParser.Type_Context):
         text = ctx.getText()
@@ -53,8 +53,15 @@ class DBVisitor(SQLVisitor):
             self._type = TypeEnum.VARCHAR
             self._type_size = int(ctx.Integer().getText())
             
-    def visitPrimary_key(self, ctx: SQLParser.Primary_key_fieldContext):
-        pass
+    def visitPrimary_key_field(self, ctx: SQLParser.Primary_key_fieldContext):
+        idents = ctx.identifiers().accept(self)
+
+    def visitIdentifiers(self, ctx: SQLParser.IdentifiersContext):
+        idents: list = list()
+        for each in ctx.children:
+            if each.getText() != ',':
+                idents.append(str(each.getText()))
+        return idents
 
     def visitForeign_key_field(self, ctx: SQLParser.Foreign_key_fieldContext):
         pass
