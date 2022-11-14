@@ -11,3 +11,18 @@ class InitMetaError(Exception):
 class ReadMetaError(Exception):
     ''' Raised when failed to read the meta info.
     '''
+
+
+class InsertRecordError(Exception):
+    ''' Raised when failed to insert a record.
+    '''
+
+
+class RemoveRecordError(Exception):
+    ''' Raised when failed to remove a record.
+    '''
+    
+
+class UpdateRecordError(Exception):
+    ''' Raised when failed to update a record.
+    '''

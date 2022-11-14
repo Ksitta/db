@@ -1,4 +1,5 @@
 import numpy as np
+from typing import Union
 
 import config as cf
 
@@ -6,14 +7,16 @@ class Bitmap:
     ''' The general bitmap data structure.
     '''
     
-    def __init__(self, capacity:int=8):
+    def __init__(self, capacity:int=8, data:Union[np.ndarray,None]=None):
         ''' Init the data structure.
         args:
             capacity: int, indicates how many bits the bitmap can represent.
+            data: np.ndarray[>=size, uint8] or None.
         '''
         self.capacity = capacity            # capacity in bits
         self.size = (capacity + 7) // 8     # size in bytes
-        self.data = np.zeros((self.size,), dtype=np.uint8)
+        if data is None: self.data = np.zeros(self.size, dtype=np.uint8)
+        else: self.data = data[:self.size].copy()
         
     
     def __str__(self):
@@ -78,17 +81,15 @@ class Bitmap:
         '''
         return self.data.copy()
         
-    
-    def deserialize(self, capacity:int, data:np.ndarray) -> None:
+    @staticmethod
+    def deserialize(capacity:int, data:np.ndarray) -> None:
         ''' Deserialize np.ndarray to the bitmap.
             This will reinit the whole bitmap.
         args:
             capacity: int, the capacity of the new bitmap.
             data: np.ndarray[(size,), uint8], size * 8 must >= capacity.
         '''
-        self.capacity = capacity
-        self.size = (capacity + 7) // 8
-        self.data = data[:self.size].copy()
+        return Bitmap(capacity, data)
 
 
 if __name__ == '__main__':
@@ -100,6 +101,6 @@ if __name__ == '__main__':
     print(bitmap)
     data = bitmap.serialize()
     print(data)
-    bitmap.deserialize(16, data)
+    bitmap = Bitmap.deserialize(16, data)
     print(bitmap)
         
