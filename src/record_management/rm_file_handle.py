@@ -1,6 +1,6 @@
 import struct
 import numpy as np
-from typing import Union
+from typing import Union, List, Dict
 
 import config as cf
 from utils.bitmap import Bitmap
@@ -27,6 +27,7 @@ class RM_FileHandle:
         self.meta_file_id = meta_file_id
         self.data_file_id = data_file_id
         self.meta = {}
+        self.meta_modified = False  # whether meta in mem is the same as it in disk
         self.page_headers = []
         self.bitmaps = []
         self.is_opened = True
@@ -36,9 +37,8 @@ class RM_FileHandle:
         ''' Read a page, change its next_free in header, and write it back.
         '''
         page = pf_manager.read_page(self.data_file_id, page_no)
-        header = RM_PageHeader()
         header_size = RM_PageHeader.size()
-        header.deserialize(page[:header_size])
+        header = RM_PageHeader.deserialize(page[:header_size])
         header.next_free = next_free
         page[:header_size] = header.serialize()
         pf_manager.write_page(self.data_file_id, page_no, page)
@@ -49,20 +49,34 @@ class RM_FileHandle:
             Store the meta info to .meta file after calculating.
         args:
             meta: dict, data structure = {
-                'record_size': int,                 # MUST, should be specified when creating the file
-                'record_per_page': int,             # OPTIONAL, will be calculated from record_length
-                'bitmap_size': int,                 # OPTIONAL, will be calculated from record_length
-                'meta_page_number': int,            # OPTIONAL, will be calculated from meta info 
-                'page_number': int,                 # OPTIONAL, will be initialized with 0
-                'record_number': int,               # OPTIONAL, will be initialized with 0
-                'next_free_page': int,              # OPTIONAL, will be initialized with INVALID
-                'column_number': int,               # MUST, should be specified when creating the file
-                'columns': List[Dict] = [ {         # MUST, a list of dicts, the column meta info
-                    'column_type': int,             # MUST, the column type enum
-                    'column_size': int,             # MUST, the column data size
-                    'column_name_length': int       # MUST, the column name length
-                    'column_name': str              # MUST, the column name, len = column_name_length
-                }, {...}, ... ]
+                'record_size': int,                                 # MUST, should be specified when creating the file
+                'record_per_page': int,                             # OPTIONAL, will be calculated from record_length
+                'bitmap_size': int,                                 # OPTIONAL, will be calculated from record_length
+                'meta_page_number': int,                            # OPTIONAL, will be calculated from meta info 
+                'page_number': int,                                 # OPTIONAL, will be initialized with 0
+                'record_number': int,                               # OPTIONAL, will be initialized with 0
+                'next_free_page': int,                              # OPTIONAL, will be initialized with INVALID
+                'column_number': int,                               # MUST, should be specified when creating the file
+                'columns': List[Dict] = [ {                         # MUST, a list of dicts, the column meta info
+                    'column_type': int,                             # MUST, the column type enum
+                    'column_size': int,                             # MUST, the column data size
+                    'column_name_length': int                       # MUST, the column name length
+                    'column_name': str                              # MUST, the column name, len = column_name_length
+                    'column_default_en': bool                       # MUST, whether to enable column default value
+                    'column_default': np.ndarray                    # MUST, if en == False, store all 0 values
+                }, {...}, ... ],
+                'primary_key_size': int,                            # MUST, the number of columns con
+                'primary_keys': List[int],                          # MUST,
+                'foreign_key_number': int,                          # MUST,
+                'foreign_keys': List[Dict] = [ {                    # MUST,
+                    'foreign_key_name_length': int,                 # MUST,
+                    'foreign_key_name': str,                        # MUST,
+                    'target_table_name_length': int,                # MUST,
+                    'target_table_name': str,                       # MUST,
+                    'foreign_key_size': int,                        # MUST,
+                    'foreign_key_pairs': List[Tuple[int,int]],      # MUST,
+                }, {...}, ...],
+                 
             }
         '''
         if not self.is_opened:
@@ -109,6 +123,7 @@ class RM_FileHandle:
         meta_pages = meta_pages.reshape((meta_page_number, cf.PAGE_SIZE))
         for i in range(meta_page_number):
             pf_manager.append_page(self.meta_file_id, meta_pages[i,:])
+        self.meta_modified = False
         
         
     def read_meta(self) -> dict:
@@ -144,6 +159,7 @@ class RM_FileHandle:
         self.meta = {'record_size': record_size, 'record_per_page': record_per_page, 'bitmap_size': bitmap_size,
             'meta_page_number': meta_page_number, 'page_number': page_number, 'record_number': record_number,
             'next_free_page': next_free_page, 'column_number': column_number, 'columns': columns}
+        self.meta_modified = False
         return self.meta
     
 
@@ -156,6 +172,7 @@ class RM_FileHandle:
         '''
         if not self.is_opened:
             raise FileNotOpenedError(f'File {self.file_name} not opened.')
+        if not self.meta_modified: return
         meta, offset = self.meta, 0
         meta_pages = np.zeros((cf.PAGE_SIZE * meta['meta_page_number'],), dtype=np.uint8)
         data = struct.pack(f'{cf.BYTE_ORDER}iiiiiiii', meta['record_size'], meta['record_per_page'],
@@ -173,6 +190,7 @@ class RM_FileHandle:
             offset += len(data)
         meta_pages = meta_pages.reshape((meta['meta_page_number'], cf.PAGE_SIZE))
         pf_manager.write_page(self.meta_file_id, meta_pages[0,:])
+        self.meta_modified = False
         
     
     def get_first_free(self) -> Union[RM_Rid, None]:
@@ -183,8 +201,8 @@ class RM_FileHandle:
         if next_free_page == cf.INVALID: return None
         page = pf_manager.read_page(self.data_file_id, next_free_page)
         header_size = RM_PageHeader.size()
-        bitmap = Bitmap()
-        bitmap.deserialize(capacity=meta['record_per_page'], data=page[header_size:header_size+meta['bitmap_size']])
+        bitmap = Bitmap.deserialize(capacity=meta['record_per_page'],
+            data=page[header_size:header_size+meta['bitmap_size']])
         slot_no = bitmap.first_free()
         return RM_Rid(page_no=next_free_page, slot_no=slot_no)
                 
@@ -211,13 +229,75 @@ class RM_FileHandle:
         '''
         if not self.is_opened:
             raise FileNotOpenedError(f'File {self.file_name} not opened.')
-        
+        meta = self.meta
+        header_size = RM_PageHeader.size()
+        record_size = meta['record_size']
+        bitmap_size = meta['bitmap_size']
+        first_free_page = meta['next_free_page']
+        record_per_page = meta['record_per_page']
+        data = data[:record_size]
+        if first_free_page == cf.INVALID:
+            header = RM_PageHeader(1, cf.INVALID)
+            bitmap = Bitmap(capacity=record_per_page)
+            bitmap.set_bit(0, True)
+            page_data = np.zeros(cf.PAGE_SIZE, dtype=np.uint8)
+            data_size = header_size + bitmap_size + record_size
+            page_data[:data_size] = np.concatenate([header.serialize(), bitmap.serialize(), data])
+            page_no = pf_manager.append_page(self.data_file_id, page_data)
+            meta['page_number'] += 1
+            meta['record_number'] += 1
+            meta['next_free_page'] = page_no
+            self.meta = meta
+            self.meta_modified = True
+            return RM_Rid(page_no=page_no, slot_no=0)
+        page_data = pf_manager.read_page(self.data_file_id, first_free_page)
+        header:RM_PageHeader = RM_PageHeader.deserialize(page_data[:header_size])
+        header.record_cnt += 1
+        bitmap:Bitmap = Bitmap.deserialize(page_data[header_size:header_size+bitmap_size])
+        slot_no = bitmap.first_free()
+        if slot_no == cf.INVALID:
+            raise InsertRecordError(f'Can not find free slot on page {first_free_page} to insert.')
+        bitmap.set_bit(slot_no, True)
+        offset = header_size + bitmap_size + slot_no * record_size
+        page_data[:header_size] = header.serialize()
+        page_data[header_size:header_size+bitmap_size] = bitmap.serialize()
+        page_data[offset:offset+record_size] = data
+        pf_manager.write_page(self.data_file_id, first_free_page, page_data)
+        # modify meta
+        meta['record_number'] += 1
+        if header.record_cnt >= record_per_page:
+            meta['next_free_page'] = header.next_free
+        self.meta = meta
+        self.meta_modified = True
+        return RM_Rid(page_no=first_free_page, slot_no=slot_no)
+
     
     def remove_record(self, rid:RM_Rid) -> None:
         ''' Remove a record by its rid.
         '''
         if not self.is_opened:
             raise FileNotOpenedError(f'File {self.file_name} not opened.')
+        meta = self.meta
+        header_size = RM_PageHeader.size()
+        bitmap_size = meta['bitmap_size']
+        first_free_page = meta['next_free_page']
+        record_per_page = meta['record_per_page']
+        page_data = pf_manager.read_page(self.data_file_id, rid.page_no)
+        header:RM_PageHeader = RM_PageHeader.deserialize(page_data[:header_size])
+        bitmap:Bitmap = Bitmap.deserialize(page_data[header_size:header_size+bitmap_size])
+        if not bitmap.get_bit(rid.slot_no):
+            raise RemoveRecordError(f'Record {rid} does not exist.')
+        header.record_cnt -= 1
+        if header.record_cnt == record_per_page - 1:
+            header.next_free = first_free_page
+            meta['next_free_page'] = rid.page_no
+        bitmap.set_bit(rid.slot_no, False)
+        page_data[:header_size] = header.serialize()
+        page_data[header_size:header_size+bitmap_size] = bitmap.serialize()
+        pf_manager.write_page(self.data_file_id, rid.page_no, page_data)
+        meta['record_number'] -= 1
+        self.meta = meta
+        self.meta_modified = True
         
     
     def update_record(self, rid:RM_Rid, data:np.ndarray) -> None:
@@ -228,7 +308,19 @@ class RM_FileHandle:
         '''
         if not self.is_opened:
             raise FileNotOpenedError(f'File {self.file_name} not opened.')
-    
+        meta = self.meta
+        header_size = RM_PageHeader.size()
+        record_size = meta['record_size']
+        bitmap_size = meta['bitmap_size']
+        data = data[:record_size]
+        page_data = pf_manager.read_page(self.data_file_id, rid.page_no)
+        bitmap:Bitmap = Bitmap.deserialize(page_data[header_size:header_size+bitmap_size])
+        if not bitmap.get_bit(rid.slot_no):
+            raise UpdateRecordError(f'Record {rid} does not exist.')
+        offset = header_size + bitmap_size + rid.slot_no * record_size
+        page_data[offset:offset+record_size] = data
+        pf_manager.write_page(self.data_file_id, rid.page_no, page_data)
+
 
 if __name__ == '__main__':
     pass
