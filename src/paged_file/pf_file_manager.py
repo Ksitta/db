@@ -1,9 +1,9 @@
 import os
 import struct
 import numpy as np
-from typing import NoReturn, List, Tuple, Dict, Set
+from typing import NoReturn, List, Tuple, Dict, Set, Union
 
-import config.pf_config as cf
+import config as cf
 from errors.err_paged_file import *
 from utils.lru_list import LRUList
 
@@ -32,9 +32,9 @@ class PF_FileManager:
         self.buffer_to_page_id: np.ndarray = np.full(cf.BUFFER_CAPACITY, cf.INVALID, dtype=np.int64)
         
         
-    def _read_disk(self, file_id:int, page_id:int) -> bytes:
+    def _read_disk(self, file_id:int, page_id:int) -> np.ndarray:
         ''' Read a page from a file on disk directly.
-        return: bytes, len == cf.PAGE_SIZE.
+        return: np.ndarray[(PAGE_SIZE,), uint8]
         '''
         if file_id not in self.file_id_to_name:
             raise ReadDiskError(f'File {file_id} has not been opened.')
@@ -42,20 +42,20 @@ class PF_FileManager:
         data = os.read(file_id, cf.PAGE_SIZE)
         if len(data) < cf.PAGE_SIZE:
             raise ReadDiskError(f'Read page failed. Read bytes: {len(data)}.')
-        return data
+        return np.frombuffer(data, dtype=np.uint8, count=cf.PAGE_SIZE).copy()
             
     
-    def _write_disk(self, file_id:int, page_id:int, data:bytes):
+    def _write_disk(self, file_id:int, page_id:int, data:np.ndarray):
         ''' Write a page to a file on disk directly.
         args:
-            data: bytes, len >= cf.PAGE_SIZE, the data to be written.
+            data: np.ndarray[(>=PAGE_SIZE,), uint8], the data to be written.
         '''
         if file_id not in self.file_id_to_name:
             raise WriteDiskError(f'File {file_id} has not been opened.')
         if len(data) < cf.PAGE_SIZE:
             raise WriteDiskError(f'Not enough data to write a page.')
         os.lseek(file_id, page_id * cf.PAGE_SIZE, os.SEEK_SET)
-        os.write(file_id, data[:cf.PAGE_SIZE])
+        os.write(file_id, data[:cf.PAGE_SIZE].tobytes())
         
         
     def _alloc_buffer(self) -> int:
@@ -79,7 +79,7 @@ class PF_FileManager:
         if file_id == cf.INVALID: return    # unpinned page, need not to deallocate
         page_id = self.buffer_to_page_id[buffer_id]
         if self.dirty[buffer_id]:
-            self._write_disk(file_id, page_id, self.buffer[buffer_id].tobytes())
+            self._write_disk(file_id, page_id, self.buffer[buffer_id])
         self.dirty[buffer_id] = False
         self.pair_to_buffer_id.pop((file_id, page_id), cf.INVALID)
         self.buffer_to_file_id[buffer_id] = cf.INVALID
@@ -90,6 +90,14 @@ class PF_FileManager:
                 self.buffered_pages[file_id].remove(buffer_id)
             if len(self.buffered_pages[file_id]) == 0:
                 self.buffered_pages.pop(file_id, {})
+                
+    
+    def get_page_cnt(self, file_id:int) -> int:
+        ''' Get the page cnt of a specific file.
+        '''
+        if file_id not in self.file_id_to_name:
+            raise GetPageCntError(f'File {file_id} has not been opened.')
+        return self.page_cnt[file_id]
     
     
     def create_file(self, file_name:str):
@@ -122,9 +130,14 @@ class PF_FileManager:
         return file_id
     
     
-    def close_file(self, file_id:int):
-        ''' Closed an opened file by its file id.
+    def close_file(self, file:Union[int,str]):
+        ''' Closed an opened file by its file id or file name.
+        args:
+            file: int or str, int for file_id, str for file_name.
         '''
+        file_id = file
+        if type(file) == str:
+            file_id = self.file_name_to_id.get(file, cf.INVALID)
         if file_id not in self.file_id_to_name:
             raise CloseFileError(f'File {file_id} has not been opened.')
         self.flush_file(file_id)
@@ -143,7 +156,7 @@ class PF_FileManager:
         for buffer_id in buffer_ids:
             if not self.dirty[buffer_id]: continue
             page_id = self.buffer_to_page_id[buffer_id]
-            self._write_disk(file_id, page_id, self.buffer[buffer_id].tobytes())
+            self._write_disk(file_id, page_id, self.buffer[buffer_id])
             self.dirty[buffer_id] = False
         
         
@@ -156,7 +169,7 @@ class PF_FileManager:
         for buffer_id in buffer_ids:
             page_id = self.buffer_to_page_id[buffer_id]
             if self.dirty[buffer_id]:
-                self._write_disk(file_id, page_id, self.buffer[buffer_id].tobytes())
+                self._write_disk(file_id, page_id, self.buffer[buffer_id])
             self.dirty[buffer_id] = False
             self.pair_to_buffer_id.pop((file_id, page_id), cf.INVALID)
             self.buffer_to_file_id[buffer_id] = cf.INVALID
@@ -190,24 +203,23 @@ class PF_FileManager:
         return page_id
         
         
-    def append_page(self, file_id:int, data:bytes=None) -> int:
+    def append_page(self, file_id:int, data:np.ndarray=None) -> int:
         ''' Append a new page at the end of the file.
         args:
             file_id: int,
-            data: bytes or None, the data to be appended.
+            data: np.ndarray[(>=PAGE_SIZE,), uint8] or None, the data to be appended.
                 If None, an empty page will be appended.
-                If not None, len(data) must >= cf.PAGE_SIZE.
         return: int, the appended page id.
         '''
         if file_id not in self.file_id_to_name:
             raise AppendPageError(f'File {file_id} has not been opened.')
-        if data == None: data = np.zeros(cf.PAGE_SIZE, dtype=np.uint8).tobytes()
+        if data is None: data = np.zeros(cf.PAGE_SIZE, dtype=np.uint8)
         if len(data) < cf.PAGE_SIZE:
             raise AppendPageError(f'Data size is not enough to append a page.')
         page_id = self.page_cnt[file_id]
         self.page_cnt[file_id] = page_id + 1
         buffer_id = self._alloc_buffer()
-        self.buffer[buffer_id] = np.frombuffer(data[:cf.PAGE_SIZE], dtype=np.uint8, count=cf.PAGE_SIZE)
+        self.buffer[buffer_id] = data[:cf.PAGE_SIZE]
         self.dirty[buffer_id] = True
         self.pair_to_buffer_id[(file_id, page_id)] = buffer_id
         self.buffer_to_file_id[buffer_id] = file_id
@@ -218,11 +230,11 @@ class PF_FileManager:
         return page_id
         
     
-    def read_page(self, file_id:int, page_id:int) -> bytes:
+    def read_page(self, file_id:int, page_id:int) -> np.ndarray:
         ''' Read a page from the file.
             If the page is buffered, read it from the buffer.
             If not, read it from the disk and buffer it.
-        return: bytes, len == cf.PAGE_SIZE.
+        return: np.ndarray[(PAGE_SIZE,), uint8]
         '''
         if file_id not in self.file_id_to_name:
             raise ReadPageError(f'File {file_id} has not been opened.')
@@ -242,16 +254,16 @@ class PF_FileManager:
             if file_id not in self.buffered_pages:
                 self.buffered_pages[file_id] = set()
             self.buffered_pages[file_id].add(buffer_id)
-            return data
+            return np.frombuffer(data, dtype=np.uint8, count=cf.PAGE_SIZE).copy()
         self.lru_list.access(buffer_id)
-        return self.buffer[buffer_id].tobytes()
+        return self.buffer[buffer_id].copy()
             
     
-    def write_page(self, file_id:int, page_id:int, data:bytes):
+    def write_page(self, file_id:int, page_id:int, data:np.ndarray):
         ''' Write a page to the file.
             Only write to the buffer.
         args:
-            data: bytes, len >= cf.PAGE_SIZE, the data to be written.
+            data: np.ndarray[(>=PAGE_SIZE,), uint8] the data to be written.
         '''
         if file_id not in self.file_id_to_name:
             raise WritePageError(f'File {file_id} has not been opened.')
@@ -268,10 +280,12 @@ class PF_FileManager:
             if file_id not in self.buffered_pages:
                 self.buffered_pages[file_id] = set()
             self.buffered_pages[file_id].add(buffer_id)
-        self.buffer[buffer_id] = np.frombuffer(data[:cf.PAGE_SIZE], dtype=np.uint8, count=cf.PAGE_SIZE)
+        self.buffer[buffer_id] = data[:cf.PAGE_SIZE]
         self.dirty[buffer_id] = True
     
+    
 pf_manager = PF_FileManager()
+
 
 if __name__ == '__main__':
     pass

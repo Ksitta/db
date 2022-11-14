@@ -42,4 +42,9 @@ class WritePageError(Exception):
     ''' Raised when failed to write a page.
     '''
     
+
+class GetPageCntError(Exception):
+    ''' Raised when failed to get the page cnt.
+    '''
+    
     
