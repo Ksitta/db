@@ -1,8 +1,8 @@
 from sql_parser.SQLVisitor import SQLVisitor
 from sql_parser.SQLParser import SQLParser
 from sm_manager.sm_manager import sm_manager
-from type.type import FloatType, IntType, VarcharType
-
+from type.type import TypeEnum
+from table.table import Column
 
 class DBVisitor(SQLVisitor):
     def visitCreate_db(self, ctx: SQLParser.Create_dbContext):
@@ -39,17 +39,20 @@ class DBVisitor(SQLVisitor):
     def visitNormal_field(self, ctx: SQLParser.Normal_fieldContext):
         ctx.type_().accept(self)
         ident = str(ctx.Identifier())
-        self._attrs.append((ident, self._type))
+        self._attrs.append(Column(ident, self._type, self._type_size))
 
     def visitType_(self, ctx: SQLParser.Type_Context):
         text = ctx.getText()
         if (text == 'INT'):
-            self._type = IntType()
+            self._type = TypeEnum.INT
+            self._type_size = 4
         if (text == 'FLOAT'):
-            self._type = FloatType()
+            self._type = TypeEnum.FLOAT
+            self._type_size = 8
         if (text == 'VARCHAR'):
-            self._type = VarcharType(int(ctx.getChild(2).getText()))
-
+            self._type = TypeEnum.VARCHAR
+            self._type_size = int(ctx.Integer().getText())
+            
     def visitPrimary_key(self, ctx: SQLParser.Primary_key_fieldContext):
         pass
 

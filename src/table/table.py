@@ -1,98 +1,60 @@
-from paged_file.pf_file_manager import pf_manager
-from type.type import BaseType, FloatType, IntType, VarcharType
-
-
-class Column():
-    _name: str
-    _type: BaseType
-    _length: int
-
-    def __init__(self, name: str, type: BaseType):
-        self._name = name
-        self._type = type
-        self._length = type.get_length()
-
-
+from record_management.rm_record_manager import rm_manager
+from record_management.rm_file_handle import RM_FileHandle
+from table.record import Record, Column
+import numpy as np
 class Table():
-    _name: str
-    _meta_fd: int
-    _data_fd: int
-    
-    # meta use to store table info
-    _columns: list
-    _record_len: int
-    _record_cnt: int
+    def __init__(self, name: str) -> None:
+        self._name: str = name
+        self._file_handle: RM_FileHandle = rm_manager.open_file(name)
+        meta: dict = self._file_handle.read_meta()
+        self._columns: list = list()
+        for each in meta['columns']:
+            column = Column(each)
+            self._columns.append(column)
 
-    def __init__(self, name: str, meta_fd: int, data_fd: int) -> None:
+    def __init__(self, name: str, attrs: list) -> None:
         self._name = name
-        self._meta_fd = meta_fd
-        self._data_fd = data_fd
-        self._load()
-
-    def __init__(self, name: str, attrs: list, meta_fd: int, data_fd: int) -> None:
-        self._name = name
-        self._meta_fd = meta_fd
-        self._data_fd = data_fd
+        
+        rm_manager.create_file(name)
+        self._file_handle: RM_FileHandle = rm_manager.open_file(name)
+        self._columns = attrs
+        
+        meta: dict = dict()
+        meta['column_number'] = len(attrs)
+        
+        record_size: int = 0
+        columns: list = list()
+        
+        for i in attrs:
+            each: Column = i
+            column: dict = dict()
+            column['column_type'] = each.type
+            column['column_size'] = each.size
+            column['column_name_length'] = len(each.name)
+            column['column_name'] = each.name
+            columns.append(column)
+            record_size += len(each.name)
+        meta['columns'] = columns
+        meta['record_size'] = record_size
+        self._file_handle.init_meta()
 
     def __del__(self):
-        self._store()
+        if self._file_handle:
+            self._file_handle.sync_meta()
+        
+    def drop(self):
+        rm_manager.remove_file(self._name)
+        self._file_handle = None
 
-    def insert_record(self, record):
-        pass
+    def insert_record(self, record: Record):
+        data: np.darray = record.to_nparray(self._columns)
+        self._file_handle.insert_record(data)
     
     def delete_record(self, rid):
-        pass
+        self._file_handle.remove_record(rid)
     
     def update_record(self, rid, record):
-        pass
+        data = record.to_nparray(self._columns)
+        self._file_handle.update_record(rid, data)
         
-    def _load(self):
-        metas: bytes = pf_manager.read_page(self._meta_fd, 0)
-        self._record_len = int.from_bytes(
-            metas[0:4], byteorder='little')
-        self._record_cnt = int.from_bytes(
-            metas[4:8], byteorder='little')
-        col_cnt = int.from_bytes(metas[8:12], byteorder='little')
-        page_num = int.from_bytes(metas[12:16], byteorder='little')
-
-        metas = bytes()
-        for i in range(page_num):
-            metas += pf_manager.read_page(self._meta_fd, i + 1)
-
-        pos: int = 0
-        for i in range(col_cnt):
-            type_num = int.from_bytes(metas[pos:pos + 4], byteorder='little')
-            pos += 4
-            type_len = int.from_bytes(metas[pos:pos + 4], byteorder='little')
-            pos += 4
-            name_len = int.from_bytes(metas[pos:pos + 4], byteorder='little')
-            pos += 4
-            name = metas[pos:pos + name_len].decode('utf-8')
-            pos += name_len
-            if (type_num == 0):
-                type = IntType()
-            if (type_num == 1):
-                type = VarcharType(type_len)
-            if (type_num == 2):
-                type = FloatType()
-            self._columns.append(Column(name, type))
-
-    def _store(self):
-        metas = bytes()
-
-        for col in self._columns:
-            metas += col._type.get_type().value.to_bytes(4, byteorder='little')
-            metas += col._type.get_length().to_bytes(4, byteorder='little')
-            metas += len(col._name).to_bytes(4, byteorder='little')
-            metas += col._name.encode('utf-8')
-
-        page_num: int = (len(metas) + 4095) // 4096
-        for i in range(page_num):
-            pf_manager.write_page(self._meta_fd, i + 1,
-                                  metas[i * 4096:(i + 1) * 4096])
-
-        metas = bytes()
-        metas += self._record_len.to_bytes(4, byteorder='little')
-        metas += self._record_cnt.to_bytes(4, byteorder='little')
-        metas += len(self._columns).to_bytes(4, byteorder='little')
-        metas += len(metas).to_bytes(4, byteorder='little')
+    

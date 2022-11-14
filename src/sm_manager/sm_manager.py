@@ -1,16 +1,12 @@
 from errors.err_sm_manager import *
 import os
 from config import *
-from paged_file.pf_file_manager import pf_manager
 from table.table import Table
 
 class SM_Manager():
     def __init__(self):
         self._using_db : str = ""
         self._db_names : set = set()
-        self._fd2table : dict = dict()
-        self._table2datafd : dict = dict()
-        self._table2metafd : dict = dict()
         self._name2table : dict = dict()
         self._tables : set = set()
         
@@ -49,39 +45,18 @@ class SM_Manager():
         self._using_db = ""
         os.chdir(self._base_dir)
         
-        for each_fd in self._table2datafd.keys():
-            pf_manager.close_file(each_fd)
-        for each_fd in self._table2metafd.keys():
-            pf_manager.close_file(each_fd)
-        self._table2datafd.clear()
-        self._table2metafd.clear()
-        self._tables.clear()
-        self._fd2table.clear()
-        
 
     def show_dbs(self):
         return self._db_names
     
 
-    def create_table(self, rel_name: str, attributes):
+    def create_table(self, rel_name: str, attributes: list):
         if(self._using_db == ""):
             raise NoUsingDatabaseError((f'No database is opened'))
         if (rel_name in self._tables):
             raise TableExistsError(rel_name)
         
-        pf_manager.create_file(rel_name + TABLE_DATA_SUFFIX)
-        pf_manager.create_file(rel_name + TABLE_META_SUFFIX)
-        
-        data_fd : int = pf_manager.open_file(rel_name + TABLE_DATA_SUFFIX)
-        meta_fd : int = pf_manager.open_file(rel_name + TABLE_META_SUFFIX)
-
-        self._fd2table[meta_fd] = rel_name
-        self._fd2table[data_fd] = rel_name
-        
-        self._table2datafd[rel_name] = data_fd
-        self._table2metafd[rel_name] = meta_fd
-
-        self._name2table[rel_name] = Table(rel_name, attributes, meta_fd, data_fd)
+        self._name2table[rel_name] = Table(rel_name, attributes)
         
 
     def describe_table(self, rel_name : str):
@@ -96,20 +71,8 @@ class SM_Manager():
             raise NoUsingDatabaseError((f'No database is opened'))
         if (rel_name not in self._tables):
             raise TableNotExistsError(rel_name)
-            
-        pf_manager.close_file(self._table2datafd[rel_name])
-        pf_manager.close_file(self._metafd2table[rel_name])
-        pf_manager.remove_file(rel_name + TABLE_DATA_SUFFIX)
-        pf_manager.remove_file(rel_name + TABLE_META_SUFFIX)
-                
+        self._name2table[rel_name].drop()
         self._tables.remove(rel_name)
-        
-        self._fd2table.pop(self._table2datafd[rel_name])
-        self._fd2table.pop(self._table2metafd[rel_name])
-        
-        self._table2metafd.pop(rel_name)
-        self._table2datafd.pop(rel_name)
-        
 
     def create_index(self, rel_name : str, attr_name : str):
         pass
