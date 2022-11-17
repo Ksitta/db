@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-import sys
+import traceback
 from antlr4 import *
 from sql_parser.SQLLexer import SQLLexer
 from sql_parser.SQLParser import SQLParser
@@ -25,6 +25,8 @@ def parser_command(line):
         res = visitor.visit(tree)
     except Exception as e:
         print(repr(e))
+        print("==============")
+        print(traceback.format_exc())
 
 
 if __name__ == '__main__':

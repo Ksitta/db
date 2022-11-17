@@ -12,20 +12,20 @@ class Table():
             column = Column(each)
             self._columns.append(column)
 
-    def __init__(self, name: str, attrs: list) -> None:
+    def __init__(self, name: str, columns: list, pk: dict, fk: dict) -> None:
         self._name = name
         
         rm_manager.create_file(name)
         self._file_handle: RM_FileHandle = rm_manager.open_file(name)
-        self._columns = attrs
+        self._columns = columns
         
         meta: dict = dict()
-        meta['column_number'] = len(attrs)
+        meta['column_number'] = len(columns)
         
         record_size: int = 0
         columns: list = list()
         
-        for i in attrs:
+        for i in columns:
             each: Column = i
             column: dict = dict()
             column['column_type'] = each.type
@@ -36,7 +36,7 @@ class Table():
             record_size += len(each.name)
         meta['columns'] = columns
         meta['record_size'] = record_size
-        self._file_handle.init_meta()
+        self._file_handle.init_meta(meta)
 
     def __del__(self):
         if self._file_handle:
