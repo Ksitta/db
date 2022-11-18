@@ -10,7 +10,7 @@ class DBVisitor(SQLVisitor):
 
     def visitShow_dbs(self, ctx: SQLParser.Show_dbsContext):
         res = sm_manager.show_dbs()
-        print(res)
+        print(res)   # TODO: use an elegant way to implement this
 
     def visitUse_db(self, ctx: SQLParser.Use_dbContext):
         return sm_manager.open_db(str(ctx.Identifier()))
@@ -23,7 +23,8 @@ class DBVisitor(SQLVisitor):
         self._pk: list = list()
         self._fk: dict = dict()
         ctx.field_list().accept(self)
-        sm_manager.create_table(str(ctx.Identifier()), self._attrs, self._pk, self._fk)
+        res = sm_manager.create_table(str(ctx.Identifier()), self._attrs, self._pk, self._fk)
+        print(res)  # TODO: use an elegant way to implement this
 
     def visitDescribe_table(self, ctx: SQLParser.Describe_tableContext):
         sm_manager.describe_table(str(ctx.Identifier()))

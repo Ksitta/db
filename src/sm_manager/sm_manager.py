@@ -2,14 +2,13 @@ from errors.err_sm_manager import *
 import os
 from config import *
 from table.table import Table
-
+from typing import Dict, Set
 
 class SM_Manager():
     def __init__(self):
         self._using_db: str = ""
-        self._db_names: set = set()
-        self._name2table: dict = dict()
-        self._tables: dict = dict()
+        self._db_names: Set[str] = set()
+        self._tables: Dict[str, Table] = dict()
 
         if(not os.path.exists(DATABASE_PATH)):
             os.mkdir(DATABASE_PATH)
@@ -55,6 +54,8 @@ class SM_Manager():
         if (self._using_db == ""):
             return
         self._using_db = ""
+        for each in self._tables.values():
+            each.sync()
         self._tables.clear()
         os.chdir(self._base_dir)
 

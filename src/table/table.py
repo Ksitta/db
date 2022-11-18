@@ -3,15 +3,14 @@ from record_management.rm_file_handle import RM_FileHandle
 from table.record import Record, Column
 import numpy as np
 class Table():
-    def __init__(self, name: str, columns: list, pk: list, fk: dict) -> None:
+    def __init__(self, name: str, columns: list = None, pk: list = None, fk: dict = None) -> None:
         self._name: str = name
         if columns == None:
             self._file_handle: RM_FileHandle = rm_manager.open_file(name)
             meta: dict = self._file_handle.read_meta()
             self._columns: list = list()
             for each in meta['columns']:
-                column = Column(each)
-                self._columns.append(column)
+                pass # TODO : read columns from meta
         else:
             rm_manager.create_file(name)
             self._file_handle: RM_FileHandle = rm_manager.open_file(name)
@@ -36,14 +35,16 @@ class Table():
             meta['record_size'] = record_size
             meta['primary_key_size'] = len(pk)
             meta['primary_keys'] = []
-            # meta['foreign_key_number'] = len(fk)
-            
+            meta['foreign_key_number'] = 0 # TODO
+            meta['foreign_keys'] = []
             self._file_handle.init_meta(meta)
    
-
-    def __del__(self):
+    def sync(self):
         if self._file_handle:
             self._file_handle.sync_meta()
+   
+    def __del__(self):
+        self.sync()
         
     def drop(self):
         rm_manager.remove_file(self._name)
