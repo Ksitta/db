@@ -4,6 +4,7 @@ from config import *
 from table.table import Table
 from typing import Dict, Set
 
+
 class SM_Manager():
     def __init__(self):
         self._using_db: str = ""
@@ -67,10 +68,15 @@ class SM_Manager():
 
     def create_table(self, rel_name: str, columns: list, pk: list, fk: dict):
         if(self._using_db == ""):
-            raise NoUsingDatabaseError((f'No database is opened'))
+            raise NoUsingDatabaseError(f'No database is opened')
         if (rel_name in self._tables):
             raise TableExistsError(rel_name)
-
+        names = set(columns)
+        if (len(names) != len(columns)):
+            raise DuplicateColumnError()
+        for each in pk:
+            if (each not in names):
+                raise NoSuchColumnError(each)
         self._tables[rel_name] = Table(rel_name, columns, pk, fk)
 
     def describe_table(self, rel_name: str):
@@ -88,19 +94,19 @@ class SM_Manager():
         self._name2table[rel_name].drop()
         self._tables.remove(rel_name)
 
-    def create_index(self, rel_name: str, attr_name: str):
+    def insert(self, rel_name: str, values: list):
         pass
 
-    def drop_index(self, rel_name: str, attr_name: str):
+    def create_index(self, rel_name: str, idents: list):
+        pass
+
+    def drop_index(self, rel_name: str, idents: list):
         pass
 
     def load(self, rel_name: str, file_name: str):
         pass
 
     def help(self):
-        pass
-
-    def help(self, rel_name: str):
         pass
 
     def set(self, param_name: str, value: str):

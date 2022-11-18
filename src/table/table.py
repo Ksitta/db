@@ -3,6 +3,9 @@ from record_management.rm_file_handle import RM_FileHandle
 from table.record import Record, Column
 import numpy as np
 class Table():
+    def add_hidden_column(self) -> None:
+        pass
+    
     def __init__(self, name: str, columns: list = None, pk: list = None, fk: dict = None) -> None:
         self._name: str = name
         if columns == None:
@@ -39,11 +42,11 @@ class Table():
             meta['foreign_keys'] = []
             self._file_handle.init_meta(meta)
    
-    def sync(self):
+    def sync(self) -> None:
         if self._file_handle:
             self._file_handle.sync_meta()
    
-    def __del__(self):
+    def __del__(self) -> None:
         self.sync()
         
     def drop(self):

@@ -3,7 +3,7 @@ from sql_parser.SQLParser import SQLParser
 from sm_manager.sm_manager import sm_manager
 from type.type import TypeEnum
 from table.table import Column
-
+from typing import List
 class DBVisitor(SQLVisitor):
     def visitCreate_db(self, ctx: SQLParser.Create_dbContext):
         return sm_manager.create_db(str(ctx.Identifier()))
@@ -38,6 +38,28 @@ class DBVisitor(SQLVisitor):
 
     def visitField(self, ctx: SQLParser.FieldContext):
         ctx.accept(self)
+       
+    def visitValue_lists(self, ctx: SQLParser.Value_listsContext):
+        value_lists = [each.accept(self) for each in ctx.value_list()]
+        return value_lists
+    
+    def visitValue_list(self, ctx: SQLParser.Value_listContext):
+        values = [each.accept(self) for each in ctx.value()]
+        return values
+    
+    def visitValue(self, ctx: SQLParser.ValueContext):
+        if ctx.Integer() is not None:
+            return int(ctx.Integer().getText())
+        if ctx.String() is not None:
+            return str(ctx.String().getText())[1:-1:]
+        if ctx.Float() is not None:
+            return float(ctx.Float().getText())
+        return None
+    
+    def visitInsert_into_table(self, ctx: SQLParser.Insert_into_tableContext):
+        table_name = str(ctx.Identifier())
+        values = ctx.value_lists().accept(self)
+        sm_manager.insert(table_name, values)
         
     def visitShow_tables(self, ctx: SQLParser.Show_tablesContext):
         sm_manager.show_tables()
@@ -69,13 +91,10 @@ class DBVisitor(SQLVisitor):
             self._type_size = int(ctx.Integer().getText())
             
     def visitPrimary_key_field(self, ctx: SQLParser.Primary_key_fieldContext):
-        self._pk: list = ctx.identifiers().accept(self)
+        self._pk: List[str] = ctx.identifiers().accept(self)
 
     def visitIdentifiers(self, ctx: SQLParser.IdentifiersContext):
-        idents: list = list()
-        for each in ctx.children:
-            if each.getText() != ',':
-                idents.append(str(each.getText()))
+        idents: List[str] = [str(each) for each in ctx.Identifier()]
         return idents
 
     def visitForeign_key_field(self, ctx: SQLParser.Foreign_key_fieldContext):
@@ -88,10 +107,14 @@ class DBVisitor(SQLVisitor):
             raise Exception("Foreign key error: local idents and target idents are not equal.")
 
     def visitAlter_add_index(self, ctx: SQLParser.Alter_add_indexContext):
-        pass
+        table_name = str(ctx.Identifier())
+        idents = ctx.identifiers().accept(self)
+        sm_manager.create_index(table_name, idents)
     
     def visitAlter_drop_index(self, ctx: SQLParser.Alter_drop_indexContext):
-        pass
+        table_name = str(ctx.Identifier())
+        idents = ctx.identifiers().accept(self)
+        sm_manager.drop_index(table_name, idents)
     
     def visitAlter_table_drop_pk(self, ctx: SQLParser.Alter_table_drop_pkContext):
         pass
@@ -100,8 +123,8 @@ class DBVisitor(SQLVisitor):
         pass
     
     def visitAlter_table_add_pk(self, ctx: SQLParser.Alter_table_add_pkContext):
-        table_name = str(ctx.Identifier(0))
-        idents = ctx.identifiers().accept(self)
+        table_name: str = str(ctx.Identifier(0))
+        idents: List[str] = ctx.identifiers().accept(self)
         pass
     
     def visitAlter_table_add_foreign_key(self, ctx: SQLParser.Alter_table_add_foreign_keyContext):
@@ -145,6 +168,9 @@ class DBVisitor(SQLVisitor):
         pass
     
     def visitOperator_(self, ctx: SQLParser.Operator_Context):
+        pass
+    
+    def visitSet_clause(self, ctx: SQLParser.Set_clauseContext):
         pass
     
     
