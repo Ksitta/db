@@ -2,6 +2,7 @@ from abc import abstractmethod
 from records.record import Record
 from typing import List
 from table.table import Table
+from operators.conditions import Condition
 
 class OperatorBase:
     """ Base class for all operators.
@@ -26,9 +27,18 @@ class TableScanNode(OperatorBase):
         return result
     
 class JoinNode(OperatorBase):
-    def __init__(self, left: OperatorBase, right: OperatorBase, condition):
+    def __init__(self, left: OperatorBase, right: OperatorBase, condition: Condition):
         self._left = left
         self._right = right
         self._condition = condition
         
+    def process(self):
+        left_result: List[Record] = self._left.process()
+        right_result: List[Record] = self._right.process()
+        result = []
+        for left_record in left_result:
+            for right_record in right_result:
+                if self._condition.fit(left_record, right_record):
+                    result.append(left_record + right_record)
+        return result
     
