@@ -1,6 +1,6 @@
 from record_management.rm_record_manager import rm_manager
 from record_management.rm_file_handle import RM_FileHandle
-from table.record import Record, Column
+from records.record import Record, Column
 import numpy as np
 class Table():
     def add_hidden_column(self) -> None:
@@ -64,4 +64,5 @@ class Table():
         data: np.ndarray = record.to_nparray(self._columns)
         self._file_handle.update_record(rid, data)
         
-    
+    def load_all_records(self):
+        # self._file_handle.

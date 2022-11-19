@@ -33,7 +33,7 @@ class DBVisitor(SQLVisitor):
         return sm_manager.drop_table(str(ctx.Identifier()))
 
     def visitField_list(self, ctx: SQLParser.Field_listContext):
-        for each in ctx.children:
+        for each in ctx.field():
             each.accept(self)
 
     def visitField(self, ctx: SQLParser.FieldContext):
@@ -120,12 +120,16 @@ class DBVisitor(SQLVisitor):
         pass
     
     def visitAlter_table_drop_foreign_key(self, ctx: SQLParser.Alter_table_drop_foreign_keyContext):
+        
         pass
     
     def visitAlter_table_add_pk(self, ctx: SQLParser.Alter_table_add_pkContext):
         table_name: str = str(ctx.Identifier(0))
         idents: List[str] = ctx.identifiers().accept(self)
         pass
+    
+    def visitSelectors(self, ctx: SQLParser.SelectorsContext):
+        return super().visitSelectors(ctx)
     
     def visitAlter_table_add_foreign_key(self, ctx: SQLParser.Alter_table_add_foreign_keyContext):
         table_name = str(ctx.Identifier(0))
@@ -137,11 +141,11 @@ class DBVisitor(SQLVisitor):
     
     def visitAlter_table_add_unique(self, ctx: SQLParser.Alter_table_add_uniqueContext):
         table_name = str(ctx.Identifier(0))
-        idents = ctx.identifiers().accept(self)
+        idents: List[str] = ctx.identifiers().accept(self)
         pass
     
     def visitWhere_and_clause(self, ctx: SQLParser.Where_and_clauseContext):
-        pass
+        return [each.accept(self) for each in ctx.where_clause()]
     
     def visitWhere_operator_expression(self, ctx: SQLParser.Where_operator_expressionContext):
         pass
