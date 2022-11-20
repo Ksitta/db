@@ -22,3 +22,6 @@ TYPE_FLOAT = 1      # field type float, size = 8
 TYPE_STR = 2        # filed type str, size >= 0
 SIZE_INT = 4        # size of int32
 SIZE_FLOAT = 8      # size of float64
+
+# unit test
+TEST_ROOT = f'./test_root'

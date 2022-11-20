@@ -9,7 +9,7 @@ from paged_file.pf_file_manager import PF_FileManager
 def test_alloc_buffer():
     # BUFFER_CAPACITY = 4, PAGE_SIZE = 16
     manager = PF_FileManager()
-    name = 'test_alloc_buffer.data'
+    name = os.path.join(cf.TEST_ROOT, 'test_alloc_buffer.data')
     manager.create_file(name)
     file_id = manager.open_file(name)
     data1 = []
@@ -32,7 +32,7 @@ def test_alloc_buffer():
 def test_lru():
     # BUFFER_CAPACITY = 4, PAGE_SIZE = 16
     manager = PF_FileManager()
-    name = 'test_lru.data'
+    name = os.path.join(cf.TEST_ROOT, 'test_lru.data')
     manager.create_file(name)
     file_id = manager.open_file(name)
     for i in range(cf.BUFFER_CAPACITY):
@@ -53,7 +53,7 @@ def test_lru():
 def test_write_page():
     # BUFFER_CAPACITY = 4, PAGE_SIZE = 16
     manager = PF_FileManager()
-    name = 'test_write_page.data'
+    name = os.path.join(cf.TEST_ROOT, 'test_write_page.data')
     manager.create_file(name)
     file_id = manager.open_file(name)
     manager.allocate_pages(file_id, cf.BUFFER_CAPACITY)
@@ -76,7 +76,7 @@ def test_write_page():
 def test_data_structures():
     # BUFFER_CAPACITY = 4, PAGE_SIZE = 16
     manager = PF_FileManager()
-    name = 'test_data_structures.data'
+    name = os.path.join(cf.TEST_ROOT, 'test_data_structures.data')
     manager.create_file(name)
     file_id = manager.open_file(name)
     for page_id in range(cf.BUFFER_CAPACITY):

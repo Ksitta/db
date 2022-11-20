@@ -13,8 +13,13 @@ class ReadMetaError(Exception):
     '''
     
 
-class ParseRecordError(Exception):
-    ''' Raised when failed to parse a record.
+class PackRecordError(Exception):
+    ''' Raised when failed to pack a record.
+    '''
+    
+
+class UnpackRecordError(Exception):
+    ''' Raised when failed to unpack a record.
     '''
 
 
