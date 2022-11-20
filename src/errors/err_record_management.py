@@ -11,6 +11,11 @@ class InitMetaError(Exception):
 class ReadMetaError(Exception):
     ''' Raised when failed to read the meta info.
     '''
+    
+
+class ParseRecordError(Exception):
+    ''' Raised when failed to parse a record.
+    '''
 
 
 class InsertRecordError(Exception):

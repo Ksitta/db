@@ -1,6 +1,6 @@
 import struct
 import numpy as np
-from typing import Union, List, Dict
+from typing import Union, List, Dict, Tuple, Any
 
 import config as cf
 from utils.bitmap import Bitmap
@@ -284,6 +284,32 @@ class RM_FileHandle:
         page = pf_manager.read_page(self.data_file_id, rid.page_no)
         record_data = page[off:off+record_size]
         return RM_Record(rid=rid, data=record_data)
+    
+    
+    def parse_record(self, record:RM_Record) -> List[Union[int, float, str]]:
+        ''' Parse the fields in a record by columns info in meta.
+        args:
+            record: RM_Record, acquired by self.get_record.
+        '''
+        meta = self.meta
+        column_number = meta['column_number']
+        columns = meta['columns']
+        data = record.data
+        res, off = [], 0
+        BYTE_ORDER = cf.BYTE_ORDER
+        for col in columns[:column_number]:
+            col_type = col['column_type']
+            col_size = col['column_size']
+            if col_type == cf.TYPE_INT:
+                res.append(struct.unpack(f'{BYTE_ORDER}i', data[off:off+col_size].tobytes())[0])
+            elif col_type == cf.TYPE_FLOAT:
+                res.append(struct.unpack(f'{BYTE_ORDER}d', data[off:off+col_size].tobytes())[0])
+            elif col_type == cf.TYPE_STR:
+                (s,) = struct.unpack(f'{BYTE_ORDER}{col_size}s', data[off:off+col_size].tobytes())
+                res.append(str(s, encoding='utf-8').strip('\0'))
+            else: raise ParseRecordError(f'Type {col_type} is invalid')
+            off += col_size
+        return res
         
     
     def insert_record(self, data:np.ndarray) -> RM_Rid:

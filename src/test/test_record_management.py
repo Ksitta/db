@@ -3,6 +3,8 @@ import struct
 import numpy as np
 
 import config as cf
+from record_management.rm_rid import RM_Rid
+from record_management.rm_record import RM_Record
 from record_management.rm_file_handle import RM_FileHandle
 from record_management.rm_record_manager import rm_manager
 
@@ -85,6 +87,56 @@ def test_meta():
     print(f'test_meta passed!')
     
 
+def test_parse_record():
+    rid = RM_Rid(0, 0)
+    data = struct.pack(f'<id4s', 3, 3.14, b'3.14')
+    data = np.frombuffer(data, dtype=np.uint8)
+    record = RM_Record(rid, data)
+    file_name = f'test_parse_record'
+    meta = {
+        'record_size': 16,
+        'column_number': 3,
+        'columns': [ {
+                'column_type': cf.TYPE_INT,
+                'column_size': cf.SIZE_INT,
+                'column_name_length': 6,
+                'column_name': 'pi_int',
+                'column_default_en': False,
+                'column_default': np.zeros(cf.SIZE_INT, dtype=np.uint8),
+            }, {
+                'column_type': cf.TYPE_FLOAT,
+                'column_size': cf.SIZE_FLOAT,
+                'column_name_length': 8,
+                'column_name': 'pi_float',
+                'column_default_en': False,
+                'column_default': np.zeros(cf.SIZE_FLOAT, dtype=np.uint8),
+            }, {
+                'column_type': cf.TYPE_STR,
+                'column_size': 4,
+                'column_name_length': 6,
+                'column_name': 'pi_str',
+                'column_default_en': False,
+                'column_default': np.zeros(4, dtype=np.uint8),
+            },
+        ],
+        'primary_key_size': 0,
+        'primary_keys': [],
+        'foreign_key_number': 0,
+        'foreign_keys': [],
+    }
+    rm_manager.create_file(file_name)
+    handle:RM_FileHandle = rm_manager.open_file(file_name)
+    handle.init_meta(meta)
+    res = handle.parse_record(record)
+    assert res[0] == 3
+    assert res[1] == 3.14
+    assert res[2] == '3.14'
+    rm_manager.close_file(file_name)
+    rm_manager.remove_file(file_name)
+    print(f'test_parse_record passed!')
+    
+
 def test():
     print(f'-------- Test record management --------')
     test_meta()
+    test_parse_record()
