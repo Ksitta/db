@@ -11,6 +11,16 @@ class InitMetaError(Exception):
 class ReadMetaError(Exception):
     ''' Raised when failed to read the meta info.
     '''
+    
+
+class PackRecordError(Exception):
+    ''' Raised when failed to pack a record.
+    '''
+    
+
+class UnpackRecordError(Exception):
+    ''' Raised when failed to unpack a record.
+    '''
 
 
 class InsertRecordError(Exception):

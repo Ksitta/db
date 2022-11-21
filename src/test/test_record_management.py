@@ -3,6 +3,8 @@ import struct
 import numpy as np
 
 import config as cf
+from record_management.rm_rid import RM_Rid
+from record_management.rm_record import RM_Record
 from record_management.rm_file_handle import RM_FileHandle
 from record_management.rm_record_manager import rm_manager
 
@@ -18,7 +20,7 @@ def test_meta():
     +----------------------------------------+
     '''
     # PAGE_SIZE = 64
-    file_name = f'test_meta'
+    file_name = os.path.join(cf.TEST_ROOT, 'test_meta')
     meta = {
         'record_size': 32,
         'column_number': 4,
@@ -85,6 +87,57 @@ def test_meta():
     print(f'test_meta passed!')
     
 
+def test_pack_unpack_record():
+    file_name = os.path.join(cf.TEST_ROOT, 'test_pack_unpack_record')
+    meta = {
+        'record_size': 22,
+        'column_number': 3,
+        'columns': [ {
+                'column_type': cf.TYPE_INT,
+                'column_size': cf.SIZE_INT,
+                'column_name_length': 6,
+                'column_name': 'pi_int',
+                'column_default_en': False,
+                'column_default': np.zeros(cf.SIZE_INT, dtype=np.uint8),
+            }, {
+                'column_type': cf.TYPE_FLOAT,
+                'column_size': cf.SIZE_FLOAT,
+                'column_name_length': 8,
+                'column_name': 'pi_float',
+                'column_default_en': False,
+                'column_default': np.zeros(cf.SIZE_FLOAT, dtype=np.uint8),
+            }, {
+                'column_type': cf.TYPE_STR,
+                'column_size': 10,
+                'column_name_length': 6,
+                'column_name': 'pi_str',
+                'column_default_en': False,
+                'column_default': np.zeros(10, dtype=np.uint8),
+            },
+        ],
+        'primary_key_size': 0,
+        'primary_keys': [],
+        'foreign_key_number': 0,
+        'foreign_keys': [],
+    }
+    rm_manager.create_file(file_name)
+    handle:RM_FileHandle = rm_manager.open_file(file_name)
+    handle.init_meta(meta)
+    data = struct.pack(f'<id10s', 3, 3.14, b'3.14\0\0\0\0\0\0')
+    data = np.frombuffer(data, dtype=np.uint8)
+    assert len(data) == 22
+    fields = handle.unpack_record(data)
+    assert fields[0] == 3
+    assert fields[1] == 3.14
+    assert fields[2] == '3.14'
+    packed_data = handle.pack_record(fields)
+    assert np.min(data == packed_data) == True
+    rm_manager.close_file(file_name)
+    rm_manager.remove_file(file_name)
+    print(f'test_pack_unpack_record passed!')
+    
+
 def test():
     print(f'-------- Test record management --------')
     test_meta()
+    test_pack_unpack_record()

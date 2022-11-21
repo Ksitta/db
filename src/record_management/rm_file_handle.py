@@ -1,6 +1,6 @@
 import struct
 import numpy as np
-from typing import Union, List, Dict
+from typing import Union, List, Dict, Tuple, Any
 
 import config as cf
 from utils.bitmap import Bitmap
@@ -284,6 +284,62 @@ class RM_FileHandle:
         page = pf_manager.read_page(self.data_file_id, rid.page_no)
         record_data = page[off:off+record_size]
         return RM_Record(rid=rid, data=record_data)
+    
+
+    def pack_record(self, fields:List[Union[int, float, str]]) -> np.ndarray:
+        ''' Pack the fields to record data by columns info in meta.
+        args:
+            fields: List[Union[int, float, str]], len >= column_number.
+        '''
+        meta = self.meta
+        column_number = meta['column_number']
+        if len(fields) < column_number:
+            raise PackRecordError(f'No enough fields to pack, len must >= {column_number}.')
+        record_size = meta['record_size']
+        columns = meta['columns']
+        data = np.zeros(record_size, dtype=np.uint8)
+        off = 0
+        BYTE_ORDER = cf.BYTE_ORDER
+        for col, field in zip(columns[:column_number], fields[:column_number]):
+            col_type = col['column_type']
+            col_size = col['column_size']
+            if col_type == cf.TYPE_INT:
+                data[off:off+col_size] = np.frombuffer(struct.pack(f'{BYTE_ORDER}i', field), dtype=np.uint8)
+            elif col_type == cf.TYPE_FLOAT:
+                data[off:off+col_size] = np.frombuffer(struct.pack(f'{BYTE_ORDER}d', field), dtype=np.uint8)
+            elif col_type == cf.TYPE_STR:
+                s = bytes(field, encoding='utf-8')[:col_size]
+                data[off:off+len(s)] = np.frombuffer(s, dtype=np.uint8)
+            else: raise PackRecordError(f'Type {col_type} is invalid.')
+            off += col_size
+        return data
+    
+    
+    def unpack_record(self, data:np.ndarray) -> List[Union[int, float, str]]:
+        ''' Unpack the record data into fileds by columns info in meta.
+        args:
+            data: np.ndarray[>=record_size, uint8], the record data.
+        '''
+        meta = self.meta
+        if len(data) < meta['record_size']:
+            raise UnpackRecordError(f'No enough data to unpack, len must >= {meta["record_size"]}.')
+        column_number = meta['column_number']
+        columns = meta['columns']
+        fields, off = [], 0
+        BYTE_ORDER = cf.BYTE_ORDER
+        for col in columns[:column_number]:
+            col_type = col['column_type']
+            col_size = col['column_size']
+            if col_type == cf.TYPE_INT:
+                fields.append(struct.unpack(f'{BYTE_ORDER}i', data[off:off+col_size].tobytes())[0])
+            elif col_type == cf.TYPE_FLOAT:
+                fields.append(struct.unpack(f'{BYTE_ORDER}d', data[off:off+col_size].tobytes())[0])
+            elif col_type == cf.TYPE_STR:
+                (s,) = struct.unpack(f'{BYTE_ORDER}{col_size}s', data[off:off+col_size].tobytes())
+                fields.append(str(s, encoding='utf-8').strip('\0'))
+            else: raise UnpackRecordError(f'Type {col_type} is invalid.')
+            off += col_size
+        return fields
         
     
     def insert_record(self, data:np.ndarray) -> RM_Rid:
