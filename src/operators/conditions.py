@@ -1,6 +1,7 @@
 from abc import abstractmethod
 from enum import Enum
 
+
 class Condition:
     """ Base class for all operators.
         This class defines the
@@ -13,6 +14,7 @@ class Condition:
     def fit(self, left_record, right_record):
         pass
 
+
 class AlgebraOperator(Enum):
     """ Base class for all operators.
         This class defines the
@@ -24,6 +26,7 @@ class AlgebraOperator(Enum):
     GREATER_EQUAL = 5
     NOT_EQUAL = 6
 
+
 class AlgebraCondition(Condition):
     def __init__(self, operator: AlgebraOperator):
         self._operator = operator
@@ -33,4 +36,3 @@ class AlgebraCondition(Condition):
 
     def fit(self, left_record, right_record):
         return False
-        

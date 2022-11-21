@@ -5,13 +5,14 @@ from table.table import Table
 from typing import Dict, Set
 from record_management.rm_record_manager import rm_manager
 
+
 class SM_Manager():
     def __init__(self):
         self._using_db: str = ""
         self._db_names: Set[str] = set()
         self._tables: Dict[str, Table] = dict()
 
-        if(not os.path.exists(DATABASE_PATH)):
+        if (not os.path.exists(DATABASE_PATH)):
             os.mkdir(DATABASE_PATH)
         os.chdir(DATABASE_PATH)
         self._base_dir: str = os.path.abspath(".")
@@ -31,7 +32,7 @@ class SM_Manager():
             os.chdir(os.path.join(self._base_dir, db_name))
             files = os.listdir(".")
             for file in files:
-                if(file.endswith(TABLE_DATA_SUFFIX)):
+                if (file.endswith(TABLE_DATA_SUFFIX)):
                     self._tables[file[:-len(TABLE_DATA_SUFFIX)]
                                  ] = Table(file[:-len(TABLE_DATA_SUFFIX)])
 
@@ -42,10 +43,10 @@ class SM_Manager():
         self._db_names.add(db_name)
 
     def drop_db(self, db_name: str):
-        if(db_name not in self._db_names):
+        if (db_name not in self._db_names):
             raise DataBaseNotExistError(
                 ((f'Database {db_name} is not existed')))
-        if(self._using_db == db_name):
+        if (self._using_db == db_name):
             self.close_db()
         os.chdir(self._base_dir)
         os.rmdir(db_name)
@@ -67,7 +68,7 @@ class SM_Manager():
         return self._tables.keys()
 
     def create_table(self, rel_name: str, columns: list, pk: list, fk: dict):
-        if(self._using_db == ""):
+        if (self._using_db == ""):
             raise NoUsingDatabaseError(f'No database is opened')
         if (rel_name in self._tables):
             raise TableExistsError(rel_name)
@@ -80,14 +81,14 @@ class SM_Manager():
         self._tables[rel_name] = Table(rel_name, columns, pk, fk)
 
     def describe_table(self, rel_name: str):
-        if(self._using_db == ""):
+        if (self._using_db == ""):
             raise NoUsingDatabaseError((f'No database is opened'))
         if (rel_name not in self._tables):
             raise TableNotExistsError(rel_name)
         self._tables[rel_name].describe()
 
     def drop_table(self, rel_name: str):
-        if(self._using_db == ""):
+        if (self._using_db == ""):
             raise NoUsingDatabaseError((f'No database is opened'))
         if (rel_name not in self._tables):
             raise TableNotExistsError(rel_name)
@@ -95,7 +96,7 @@ class SM_Manager():
         rm_manager.remove_file(rel_name)
 
     def insert(self, rel_name: str, values: list):
-        if(self._using_db == ""):
+        if (self._using_db == ""):
             raise NoUsingDatabaseError((f'No database is opened'))
         if (rel_name not in self._tables):
             raise TableNotExistsError(rel_name)
