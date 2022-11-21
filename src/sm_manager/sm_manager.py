@@ -3,7 +3,7 @@ import os
 from config import *
 from table.table import Table
 from typing import Dict, Set
-
+from record_management.rm_record_manager import rm_manager
 
 class SM_Manager():
     def __init__(self):
@@ -56,7 +56,7 @@ class SM_Manager():
             return
         self._using_db = ""
         for each in self._tables.values():
-            each.sync()
+            del each
         self._tables.clear()
         os.chdir(self._base_dir)
 
@@ -91,11 +91,15 @@ class SM_Manager():
             raise NoUsingDatabaseError((f'No database is opened'))
         if (rel_name not in self._tables):
             raise TableNotExistsError(rel_name)
-        self._name2table[rel_name].drop()
         self._tables.remove(rel_name)
+        rm_manager.remove_file(rel_name)
 
     def insert(self, rel_name: str, values: list):
-        pass
+        if(self._using_db == ""):
+            raise NoUsingDatabaseError((f'No database is opened'))
+        if (rel_name not in self._tables):
+            raise TableNotExistsError(rel_name)
+        self._tables[rel_name].insert(values)
 
     def create_index(self, rel_name: str, idents: list):
         pass

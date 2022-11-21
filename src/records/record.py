@@ -1,17 +1,18 @@
-from type.type import TypeEnum
+from config import *
 import numpy as np
-
+from typing import List, Union
+from record_management.rm_rid import RM_Rid
 class Column():
-    def __init__(self, name: str, type: TypeEnum, size: int, nullable: bool,default_val=None) -> None:
+    def __init__(self, name: str, type: int, size: int, nullable: bool,default_val=None) -> None:
         self.name: str = name
-        self.type: TypeEnum = type
+        self.type: int = type
         self.size: int = size
         self.nullable: bool = nullable
         self.default_val = default_val
     
     # def __init__(self, column: dict) -> None:
     #     self.name: str = column['column_name']
-    #     self.type: TypeEnum = column['column_type']
+    #     self.type: int = column['column_type']
     #     self.size: int = column['column_size']
     #     default_en = column['column_default_en']
     #     if default_en:
@@ -26,32 +27,12 @@ class Column():
     #         self.default_val = None
 
 class Record():
-    def __init__(self, data:np.ndarray, columns: list) -> None:
-        pos = 0
-        self._data: list = list()
-        for each in columns:
-            column: Column = each
-            if column._type == TypeEnum.INT:
-                res: int = int.from_bytes(data[pos:pos+column._size], 'little')
-            if column._type == TypeEnum.FLOAT:
-                res: float = float.from_bytes(data[pos:pos+column._size], 'little')
-            if column._type == TypeEnum.VARCHAR:
-                res: str = data[pos:pos+column._size].tobytes().decode('utf-8')    
-            self._data.append(res)
-            pos += column._size
     
-    def to_nparray(self, columns: list) -> np.ndarray:
-        data = np.ndarray((0,), dtype=np.uint8)
-        for each in columns:
-            column: Column = each
-            if column._type == TypeEnum.INT:
-                data = np.append(data, self._data[column._name].to_bytes(column._size, 'little'))
-            if column._type == TypeEnum.FLOAT:
-                data = np.append(data, self._data[column._name].to_bytes(column._size, 'little'))
-            if column._type == TypeEnum.VARCHAR:
-                data = np.append(data, self._data[column._name][:column.size:].encode('utf-8').ljust(column._size, b'\x00'))
-        return data
-    
+    def __init__(self, columns: List[Union[int, float, str]], rid: RM_Rid) -> None:
+        self.data: List[Union[int, float, str]] = columns
+        self.rid: RM_Rid = rid
         
+    def get_field(self, cnt: int) -> Union[int, float, str]:
+        return self.data[cnt]
     
     

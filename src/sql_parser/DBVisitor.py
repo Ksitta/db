@@ -1,9 +1,9 @@
 from sql_parser.SQLVisitor import SQLVisitor
 from sql_parser.SQLParser import SQLParser
 from sm_manager.sm_manager import sm_manager
-from type.type import TypeEnum
 from table.table import Column
 from typing import List
+from config import *
 class DBVisitor(SQLVisitor):
     def visitCreate_db(self, ctx: SQLParser.Create_dbContext):
         return sm_manager.create_db(str(ctx.Identifier()))
@@ -62,7 +62,8 @@ class DBVisitor(SQLVisitor):
         sm_manager.insert(table_name, values)
         
     def visitShow_tables(self, ctx: SQLParser.Show_tablesContext):
-        sm_manager.show_tables()
+        tables = sm_manager.show_tables()
+        print(tables)
 
     def visitNormal_field(self, ctx: SQLParser.Normal_fieldContext):
         ctx.type_().accept(self)
@@ -70,24 +71,24 @@ class DBVisitor(SQLVisitor):
         nullable: bool = ctx.Null() is not None
         default_val = ctx.value()
         if default_val is not None:
-            if self._type == TypeEnum.INT:
+            if self._type == TYPE_INT:
                 default_val: int = int(default_val)
-            elif self._type == TypeEnum.FLOAT:
+            elif self._type == TYPE_FLOAT:
                 default_val: float = float(default_val)
-            elif self._type == TypeEnum.VARCHAR:
+            elif self._type == TYPE_STR:
                 default_val: str = str(default_val)
         self._attrs.append(Column(ident, self._type, self._type_size, nullable, default_val))
 
     def visitType_(self, ctx: SQLParser.Type_Context):
         text = ctx.getText()
         if (text == 'INT'):
-            self._type = TypeEnum.INT
+            self._type = TYPE_INT
             self._type_size = 4
         if (text == 'FLOAT'):
-            self._type = TypeEnum.FLOAT
+            self._type = TYPE_FLOAT
             self._type_size = 8
         if (text == 'VARCHAR'):
-            self._type = TypeEnum.VARCHAR
+            self._type = TYPE_STR
             self._type_size = int(ctx.Integer().getText())
             
     def visitPrimary_key_field(self, ctx: SQLParser.Primary_key_fieldContext):
