@@ -4,11 +4,29 @@ from sm_manager.sm_manager import sm_manager
 from table.table import Column
 from typing import List
 from config import *
+from enum import Enum
 
+class Operator(Enum):
+    OP_EQ = 0
+    OP_LT = 1
+    OP_LE = 2
+    OP_GT = 3
+    OP_GE = 4
+    OP_NE = 5
+
+class Aggregator(Enum):
+    COUNT = 0
+    AVG = 1
+    MAX = 2
+    MIN = 3
+    SUM = 4
 
 class DBVisitor(SQLVisitor):
     def visitCreate_db(self, ctx: SQLParser.Create_dbContext):
         return sm_manager.create_db(str(ctx.Identifier()))
+
+    def visitDrop_db(self, ctx: SQLParser.Drop_dbContext):
+        return sm_manager.drop_db(str(ctx.Identifier()))
 
     def visitShow_dbs(self, ctx: SQLParser.Show_dbsContext):
         res = sm_manager.show_dbs()
@@ -17,8 +35,18 @@ class DBVisitor(SQLVisitor):
     def visitUse_db(self, ctx: SQLParser.Use_dbContext):
         return sm_manager.open_db(str(ctx.Identifier()))
 
-    def visitDrop_db(self, ctx: SQLParser.Drop_dbContext):
-        return sm_manager.drop_db(str(ctx.Identifier()))
+    def visitShow_tables(self, ctx: SQLParser.Show_tablesContext):
+        tables = sm_manager.show_tables()
+        print(tables)
+        
+    def visitShow_indexes(self, ctx: SQLParser.Show_indexesContext):
+        return super().visitShow_indexes(ctx)
+
+    def visitLoad_data(self, ctx: SQLParser.Load_dataContext):
+        return super().visitLoad_data(ctx)
+    
+    def visitDump_data(self, ctx: SQLParser.Dump_dataContext):
+        return super().visitDump_data(ctx)
 
     def visitCreate_table(self, ctx: SQLParser.Create_tableContext):
         self._attrs: list = list()
@@ -29,88 +57,30 @@ class DBVisitor(SQLVisitor):
             str(ctx.Identifier()), self._attrs, self._pk, self._fk)
         print(res)  # TODO: use an elegant way to implement this
 
-    def visitDescribe_table(self, ctx: SQLParser.Describe_tableContext):
-        sm_manager.describe_table(str(ctx.Identifier()))
-
     def visitDrop_table(self, ctx: SQLParser.Drop_tableContext):
         return sm_manager.drop_table(str(ctx.Identifier()))
 
-    def visitField_list(self, ctx: SQLParser.Field_listContext):
-        for each in ctx.field():
-            each.accept(self)
-
-    def visitField(self, ctx: SQLParser.FieldContext):
-        ctx.accept(self)
-
-    def visitValue_lists(self, ctx: SQLParser.Value_listsContext):
-        value_lists = [each.accept(self) for each in ctx.value_list()]
-        return value_lists
-
-    def visitValue_list(self, ctx: SQLParser.Value_listContext):
-        values = [each.accept(self) for each in ctx.value()]
-        return values
-
-    def visitValue(self, ctx: SQLParser.ValueContext):
-        if ctx.Integer() is not None:
-            return int(ctx.Integer().getText())
-        if ctx.String() is not None:
-            return str(ctx.String().getText())[1:-1:]
-        if ctx.Float() is not None:
-            return float(ctx.Float().getText())
-        return None
+    def visitDescribe_table(self, ctx: SQLParser.Describe_tableContext):
+        sm_manager.describe_table(str(ctx.Identifier()))
 
     def visitInsert_into_table(self, ctx: SQLParser.Insert_into_tableContext):
         table_name = str(ctx.Identifier())
         values = ctx.value_lists().accept(self)
         sm_manager.insert(table_name, values)
 
-    def visitShow_tables(self, ctx: SQLParser.Show_tablesContext):
-        tables = sm_manager.show_tables()
-        print(tables)
+    def visitDelete_from_table(self, ctx: SQLParser.Delete_from_tableContext):
+        return super().visitDelete_from_table(ctx)
+        
+    def visitUpdate_table(self, ctx: SQLParser.Update_tableContext):
+        pass
 
-    def visitNormal_field(self, ctx: SQLParser.Normal_fieldContext):
-        ctx.type_().accept(self)
-        ident: str = str(ctx.Identifier())
-        nullable: bool = ctx.Null() is not None
-        default_val = ctx.value()
-        if default_val is not None:
-            if self._type == TYPE_INT:
-                default_val: int = int(default_val)
-            elif self._type == TYPE_FLOAT:
-                default_val: float = float(default_val)
-            elif self._type == TYPE_STR:
-                default_val: str = str(default_val)
-        self._attrs.append(
-            Column(ident, self._type, self._type_size, nullable, default_val))
+    # def visitSelect_table_(self, ctx: SQLParser.Select_table_Context):
+        # pass
 
-    def visitType_(self, ctx: SQLParser.Type_Context):
-        text = ctx.getText()
-        if (text == 'INT'):
-            self._type = TYPE_INT
-            self._type_size = 4
-        if (text == 'FLOAT'):
-            self._type = TYPE_FLOAT
-            self._type_size = 8
-        if (text == 'VARCHAR'):
-            self._type = TYPE_STR
-            self._type_size = int(ctx.Integer().getText())
-
-    def visitPrimary_key_field(self, ctx: SQLParser.Primary_key_fieldContext):
-        self._pk: List[str] = ctx.identifiers().accept(self)
-
-    def visitIdentifiers(self, ctx: SQLParser.IdentifiersContext):
-        idents: List[str] = [str(each) for each in ctx.Identifier()]
-        return idents
-
-    def visitForeign_key_field(self, ctx: SQLParser.Foreign_key_fieldContext):
-        self._fk: dict = {}
-        self._fk["constraint_name"] = str(ctx.Identifier(0))
-        self._fk["target_table"] = str(ctx.Identifier(1))
-        self._fk["local_idents"] = ctx.identifiers(0).accept(self)
-        self._fk["target_idents"] = ctx.identifiers(1).accept(self)
-        if (len(self._fk["local_idents"]) != len(self._fk["target_idents"])):
-            raise Exception(
-                "Foreign key error: local idents and target idents are not equal.")
+    def visitSelect_table(self, ctx: SQLParser.Select_tableContext):
+        selectors = ctx.selectors().accept(self)
+        idents = ctx.identifiers().accept(self)
+        where_clause = ctx.where_and_clause().accept(self)
 
     def visitAlter_add_index(self, ctx: SQLParser.Alter_add_indexContext):
         table_name = str(ctx.Identifier())
@@ -133,10 +103,7 @@ class DBVisitor(SQLVisitor):
         table_name: str = str(ctx.Identifier(0))
         idents: List[str] = ctx.identifiers().accept(self)
         pass
-
-    def visitSelectors(self, ctx: SQLParser.SelectorsContext):
-        return super().visitSelectors(ctx)
-
+        
     def visitAlter_table_add_foreign_key(self, ctx: SQLParser.Alter_table_add_foreign_keyContext):
         table_name = str(ctx.Identifier(0))
         fk_name = str(ctx.Identifier(1))
@@ -149,11 +116,77 @@ class DBVisitor(SQLVisitor):
         table_name = str(ctx.Identifier(0))
         idents: List[str] = ctx.identifiers().accept(self)
         pass
+        
+    def visitField_list(self, ctx: SQLParser.Field_listContext):
+        for each in ctx.field():
+            each.accept(self)
+
+    def visitField(self, ctx: SQLParser.FieldContext):
+        ctx.accept(self)
+    
+    
+    def visitNormal_field(self, ctx: SQLParser.Normal_fieldContext):
+        (type_t, type_len) = ctx.type_().accept(self)
+        ident: str = str(ctx.Identifier())
+        nullable: bool = ctx.Null() is not None
+        default_val = ctx.value()
+        if default_val is not None:
+            if type_t == TYPE_INT:
+                default_val: int = int(default_val)
+            elif type_t == TYPE_FLOAT:
+                default_val: float = float(default_val)
+            elif type_t == TYPE_STR:
+                default_val: str = str(default_val)
+        self._attrs.append(
+            Column(ident, type_t, type_len, nullable, default_val))
+
+    def visitPrimary_key_field(self, ctx: SQLParser.Primary_key_fieldContext):
+        self._pk: List[str] = ctx.identifiers().accept(self)
+
+    def visitForeign_key_field(self, ctx: SQLParser.Foreign_key_fieldContext):
+        self._fk: dict = {}
+        self._fk["constraint_name"] = str(ctx.Identifier(0))
+        self._fk["target_table"] = str(ctx.Identifier(1))
+        self._fk["local_idents"] = ctx.identifiers(0).accept(self)
+        self._fk["target_idents"] = ctx.identifiers(1).accept(self)
+        if (len(self._fk["local_idents"]) != len(self._fk["target_idents"])):
+            raise Exception(
+                "Foreign key error: local idents and target idents are not equal.")
+
+        
+    def visitType_(self, ctx: SQLParser.Type_Context):
+        text = ctx.getText()
+        if (text == 'INT'):
+            return (TYPE_INT, 4)
+        if (text == 'FLOAT'):
+            return (TYPE_FLOAT, 8)
+        if (text == 'VARCHAR'):
+            return (TYPE_STR, int(ctx.Integer().getText()))
+        
+    def visitValue_lists(self, ctx: SQLParser.Value_listsContext):
+        value_lists = [each.accept(self) for each in ctx.value_list()]
+        return value_lists
+
+    def visitValue_list(self, ctx: SQLParser.Value_listContext):
+        values = [each.accept(self) for each in ctx.value()]
+        return values
+
+    def visitValue(self, ctx: SQLParser.ValueContext):
+        if ctx.Integer() is not None:
+            return int(ctx.Integer().getText())
+        if ctx.String() is not None:
+            return str(ctx.String().getText())[1:-1:]
+        if ctx.Float() is not None:
+            return float(ctx.Float().getText())
+        return None
 
     def visitWhere_and_clause(self, ctx: SQLParser.Where_and_clauseContext):
         return [each.accept(self) for each in ctx.where_clause()]
 
     def visitWhere_operator_expression(self, ctx: SQLParser.Where_operator_expressionContext):
+        pass
+
+    def visitWhere_operator_select(self, ctx: SQLParser.Where_operator_selectContext):
         pass
 
     def visitWhere_null(self, ctx: SQLParser.Where_nullContext):
@@ -168,17 +201,57 @@ class DBVisitor(SQLVisitor):
     def visitWhere_like_string(self, ctx: SQLParser.Where_like_stringContext):
         pass
 
-    def visitSelect_table(self, ctx: SQLParser.Select_tableContext):
-        pass
+    def visitColumn(self, ctx: SQLParser.ColumnContext):
+        table_name = ctx.Identifier(0).accept(self)
+        col_name = ctx.Identifier(1).accept(self)
+        return (table_name, col_name)
 
-    def visitSelectors(self, ctx: SQLParser.SelectorsContext):
-        pass
-
-    def visitSelector(self, ctx: SQLParser.SelectorContext):
-        pass
-
-    def visitOperator_(self, ctx: SQLParser.Operator_Context):
+    def visitExpression(self, ctx: SQLParser.ExpressionContext):
         pass
 
     def visitSet_clause(self, ctx: SQLParser.Set_clauseContext):
         pass
+
+    def visitSelectors(self, ctx: SQLParser.SelectorsContext):
+        selectors = [each.accept(self) for each in ctx.selector()]
+        return selectors
+
+    def visitSelector(self, ctx: SQLParser.SelectorContext):
+        if (ctx.Identifier() is not None):
+            return ctx.Identifier().accept(self)
+        if (ctx.aggregator() is not None):
+            col = ctx.column().accept(self)
+            aggr = ctx.aggregator().accept(self)
+            return (aggr, col)
+        return Aggregator.COUNT
+    
+    def visitIdentifiers(self, ctx: SQLParser.IdentifiersContext):
+        idents: List[str] = [str(each) for each in ctx.Identifier()]
+        return idents
+    
+    def visitOperator_(self, ctx: SQLParser.Operator_Context):
+        if (ctx.EqualOrAssign() is not None):
+            return Operator.OP_EQ
+        if (ctx.Less() is not None):
+            return Operator.OP_LT
+        if (ctx.LessEqual() is not None):
+            return Operator.OP_LE
+        if (ctx.Greater() is not None):
+            return Operator.OP_GT
+        if (ctx.GreaterEqual() is not None):
+            return Operator.OP_GE
+        if (ctx.NotEqual() is not None):
+            return Operator.OP_NE
+    
+    def visitAggregator(self, ctx: SQLParser.AggregatorContext):
+        if (ctx.Count() is not None):
+            return Aggregator.COUNT
+        if (ctx.Sum() is not None):
+            return Aggregator.SUM
+        if (ctx.Avg() is not None):
+            return Aggregator.AVG
+        if (ctx.Min() is not None):
+            return Aggregator.MIN
+        if (ctx.Max() is not None):
+            return Aggregator.MAX
+    
