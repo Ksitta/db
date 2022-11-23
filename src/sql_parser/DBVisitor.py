@@ -69,10 +69,12 @@ class DBVisitor(SQLVisitor):
         sm_manager.insert(table_name, values)
 
     def visitDelete_from_table(self, ctx: SQLParser.Delete_from_tableContext):
-        return super().visitDelete_from_table(ctx)
+        table_name = str(ctx.Identifier())
+        
         
     def visitUpdate_table(self, ctx: SQLParser.Update_tableContext):
-        pass
+        table_name = str(ctx.Identifier())
+
 
     # def visitSelect_table_(self, ctx: SQLParser.Select_table_Context):
         # pass
@@ -81,6 +83,7 @@ class DBVisitor(SQLVisitor):
         selectors = ctx.selectors().accept(self)
         idents = ctx.identifiers().accept(self)
         where_clause = ctx.where_and_clause().accept(self)
+
 
     def visitAlter_add_index(self, ctx: SQLParser.Alter_add_indexContext):
         table_name = str(ctx.Identifier())
@@ -202,8 +205,10 @@ class DBVisitor(SQLVisitor):
         pass
 
     def visitColumn(self, ctx: SQLParser.ColumnContext):
-        table_name = ctx.Identifier(0).accept(self)
-        col_name = ctx.Identifier(1).accept(self)
+        table_name = ctx.Identifier(0)
+        if(table_name is not None):
+            table_name = str(table_name)
+        col_name = str(ctx.Identifier(1))
         return (table_name, col_name)
 
     def visitExpression(self, ctx: SQLParser.ExpressionContext):

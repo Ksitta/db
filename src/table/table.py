@@ -9,9 +9,13 @@ from typing import List, Union
 
 class Table():
     def describe(self):
-        result: List[List[str, list]]
+        result: List[List[str, int]]
         for each in self._columns:
             result.append([each.name, each.type, each.size])
+        return result
+
+    def get_name(self) -> str:
+        return self._name
 
     def __init__(self, name: str, columns: list = None, pk: list = None, fk: dict = None) -> None:
         self._name: str = name

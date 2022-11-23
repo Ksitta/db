@@ -2,7 +2,7 @@ from errors.err_sm_manager import *
 import os
 from config import *
 from table.table import Table
-from typing import Dict, Set
+from typing import Dict, Set, List
 from record_management.rm_record_manager import rm_manager
 
 
@@ -116,6 +116,22 @@ class SM_Manager():
 
     def set(self, param_name: str, value: str):
         pass
+
+    def get_table_name(self, col_name: str, tables: List[str]) -> str:
+        found: bool = False
+        for each in tables:
+            table = self._tables[each]
+            names = table.get_column_names()
+            if(col_name in names):
+                if(found):
+                    raise AmbiguousColumnError(col_name)
+                found = True
+                table_name: str = table.get_name()
+
+        if(not found):
+            raise NoSuchColumnError(col_name)
+
+        return table_name
 
 
 sm_manager = SM_Manager()

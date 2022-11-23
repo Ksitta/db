@@ -28,5 +28,10 @@ class DuplicateColumnError(Exception):
     '''
 
 class NoSuchColumnError(Exception):
-    ''' Raised when create a table some column in PK not int columns.
+    ''' Raised when use a column not exists.
+    '''
+
+
+class AmbiguousColumnError(Exception):
+    ''' Raised when use a column name that is not unique.
     '''

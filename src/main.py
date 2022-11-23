@@ -6,7 +6,6 @@ from sql_parser.SQLLexer import SQLLexer
 from sql_parser.SQLParser import SQLParser
 from sql_parser.DBVisitor import DBVisitor
 import signal
-from time import sleep
 from sm_manager.sm_manager import sm_manager
 
 def parser_command(line):
