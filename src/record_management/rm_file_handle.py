@@ -377,7 +377,8 @@ class RM_FileHandle:
         page_data = pf_manager.read_page(self.data_file_id, first_free_page)
         header:RM_PageHeader = RM_PageHeader.deserialize(page_data[:header_size])
         header.record_cnt += 1
-        bitmap:Bitmap = Bitmap.deserialize(page_data[header_size:header_size+bitmap_size])
+        bitmap:Bitmap = Bitmap.deserialize(capacity=record_per_page,
+            data=page_data[header_size:header_size+bitmap_size])
         slot_no = bitmap.first_free()
         if slot_no == cf.INVALID:
             raise InsertRecordError(f'Can not find free slot on page {first_free_page} to insert.')
@@ -408,7 +409,8 @@ class RM_FileHandle:
         record_per_page = meta['record_per_page']
         page_data = pf_manager.read_page(self.data_file_id, rid.page_no)
         header:RM_PageHeader = RM_PageHeader.deserialize(page_data[:header_size])
-        bitmap:Bitmap = Bitmap.deserialize(page_data[header_size:header_size+bitmap_size])
+        bitmap:Bitmap = Bitmap.deserialize(capacity=record_per_page,
+            data=page_data[header_size:header_size+bitmap_size])
         if not bitmap.get_bit(rid.slot_no):
             raise RemoveRecordError(f'Record {rid} does not exist.')
         header.record_cnt -= 1
@@ -438,7 +440,8 @@ class RM_FileHandle:
         bitmap_size = meta['bitmap_size']
         data = data[:record_size]
         page_data = pf_manager.read_page(self.data_file_id, rid.page_no)
-        bitmap:Bitmap = Bitmap.deserialize(page_data[header_size:header_size+bitmap_size])
+        bitmap:Bitmap = Bitmap.deserialize(capacity=meta['record_per_page'],
+            data=page_data[header_size:header_size+bitmap_size])
         if not bitmap.get_bit(rid.slot_no):
             raise UpdateRecordError(f'Record {rid} does not exist.')
         off = header_size + bitmap_size + rid.slot_no * record_size
