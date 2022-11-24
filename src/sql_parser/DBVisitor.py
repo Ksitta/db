@@ -5,6 +5,7 @@ from table.table import Column
 from typing import List, Dict
 from config import *
 from operators.operators import *
+from common.disjointset import DisjointSet
 
 class DBVisitor(SQLVisitor):
     def visitProgram(self, ctx: SQLParser.ProgramContext):
@@ -88,6 +89,13 @@ class DBVisitor(SQLVisitor):
         where_clause = None
         if(ctx.where_and_clause()):
             where_clause = ctx.where_and_clause().accept(self)
+
+        idents_set = set(idents)
+        if len(idents_set) != len(idents):
+            raise Exception("Duplicate table name")
+        
+        djset = DisjointSet(idents_set)
+
         for each in selectors:
             if(each.table_name is None):
                 each.table_name = sm_manager.get_table_name(each.col_name, idents)
@@ -96,9 +104,14 @@ class DBVisitor(SQLVisitor):
         table_scan: Dict[str, OperatorBase] = {}
         for each in idents:
             table_scan[each] = TableScanNode(sm_manager.get_table(each))
-        
-        node = table_scan[idents[0]]
-        
+                
+        for each in idents[1:]:
+            if (djset.is_connect(idents[0], each)):
+                continue
+            raise Exception("Not all tables are joined")
+
+        node = table_scan[djset.find(idents[0])]
+
         # add project node
         if(len(selectors) != 0):
             node = ProjectNode(node, selectors)
