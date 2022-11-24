@@ -12,22 +12,6 @@ class Column():
         self.nullable: bool = nullable
         self.default_val = default_val
 
-    # def __init__(self, column: dict) -> None:
-    #     self.name: str = column['column_name']
-    #     self.type: int = column['column_type']
-    #     self.size: int = column['column_size']
-    #     default_en = column['column_default_en']
-    #     if default_en:
-    #         default_data:np.ndarray = column['column_default']
-    #         if self.type == TypeEnum.INT:
-    #             self.default_val = int.from_bytes(default_data, byteorder='little')
-    #         elif self.type == TypeEnum.FLOAT:
-    #             self.default_val = float.from_bytes(default_data, byteorder='little')
-    #         elif self.type == TypeEnum.VARCHAR:
-    #             self.default_val = default_data.tobytes().decode('utf-8')
-    #     else:
-    #         self.default_val = None
-
 
 class Record():
 
