@@ -187,21 +187,27 @@ class DBVisitor(SQLVisitor):
         return [each.accept(self) for each in ctx.where_clause()]
 
     def visitWhere_operator_expression(self, ctx: SQLParser.Where_operator_expressionContext):
+        col = ctx.column.accept(self)
         pass
 
     def visitWhere_operator_select(self, ctx: SQLParser.Where_operator_selectContext):
+        col = ctx.column.accept(self)
         pass
 
     def visitWhere_null(self, ctx: SQLParser.Where_nullContext):
+        col = ctx.column.accept(self)
         pass
 
     def visitWhere_in_list(self, ctx: SQLParser.Where_in_listContext):
+        col = ctx.column.accept(self)
         pass
 
     def visitWhere_in_select(self, ctx: SQLParser.Where_in_selectContext):
+        col = ctx.column.accept(self)
         pass
 
     def visitWhere_like_string(self, ctx: SQLParser.Where_like_stringContext):
+        col = ctx.column.accept(self)
         pass
 
     def visitColumn(self, ctx: SQLParser.ColumnContext):

@@ -4,7 +4,7 @@ from config import *
 from table.table import Table
 from typing import Dict, Set, List
 from record_management.rm_record_manager import rm_manager
-
+from typing import List, Union
 
 class SM_Manager():
     def __init__(self):
@@ -95,12 +95,13 @@ class SM_Manager():
         self._tables.remove(rel_name)
         rm_manager.remove_file(rel_name)
 
-    def insert(self, rel_name: str, values: list):
+    def insert(self, rel_name: str, values: List[List[Union[int, float, str]]]):
         if (self._using_db == ""):
             raise NoUsingDatabaseError((f'No database is opened'))
         if (rel_name not in self._tables):
             raise TableNotExistsError(rel_name)
-        self._tables[rel_name].insert(values)
+        for each in values:
+            self._tables[rel_name].insert_record(each)
 
     def create_index(self, rel_name: str, idents: list):
         pass

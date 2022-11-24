@@ -5,6 +5,7 @@ from record_management.rm_rid import RM_Rid
 from records.record import Record, Column
 import numpy as np
 from typing import List, Union
+from config import *
 
 
 class Table():
@@ -57,9 +58,26 @@ class Table():
         self._file_handle.sync_meta()
         rm_manager.close_file(self._name)
 
-    def insert_record(self, record: Record):
-        data: np.ndarray = self._file_handle.pack_record(
-            record.to_nparray(record._data))
+    def _check_fields(self, fields: List[Union[int, float, str, None]]):
+        if(len(fields) != len(self._columns)):
+            raise Exception("Field number not match")
+        for i in range(len(fields)):
+            if (type(fields[i]) is int):
+                if(self._columns[i].type != TYPE_INT):
+                    raise Exception("Field type not match expected int but got {}".format())
+            if (type(fields[i]) is float):
+                if(self._columns[i].type != TYPE_FLOAT):
+                    raise Exception("Field type not match")
+            if (type(fields[i]) is str):
+                if(self._columns[i].type != TYPE_STR):
+                    raise Exception("Field type not match")
+            if (fields[i] is None):
+                if(self._columns[i].nullable == False):
+                    raise Exception("Field type not match")
+                
+    def insert_record(self, fields: List[Union[int, float, str, None]]):
+        self._check_fields(fields)
+        data: np.ndarray = self._file_handle.pack_record(fields)
         self._file_handle.insert_record(data)
 
     def delete_record(self, rid: RM_Rid):
