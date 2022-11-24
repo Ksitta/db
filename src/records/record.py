@@ -40,5 +40,5 @@ class RecordList():
     def append(self, record: Record):
         self.records.append(record)
 
-    def set_columns(self, columns: List[str]):
+    def set_columns(self, columns: List[Col]):
         self.columns = columns

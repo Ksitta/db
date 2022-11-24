@@ -31,7 +31,7 @@ class ProjectNode(OperatorBase):
         j = 0
         proj: List[int] = list()
         while i != len(self._columns):
-            while j != len(self._columns):
+            while j != len(inlist.columns):
                 if self._columns[i].col_name == inlist.columns[j].col_name and self._columns[i].table_name == inlist.columns[j].table_name:
                     proj.append(j)
                     break
@@ -72,8 +72,8 @@ class TableScanNode(OperatorBase):
     def process(self) -> RecordList:
         result: List[Record] = self._table.load_all_records()
         table_name = self._table.get_name()
-        cols = [Col(table_name, each.name) for each in self._table.get_column_names()]
-        return RecordList(result, cols)
+        cols = [Col(table_name, each) for each in self._table.get_column_names()]
+        return RecordList(cols, result)
 
 
 class JoinNode(OperatorBase):

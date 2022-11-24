@@ -24,6 +24,8 @@ def parser_command(line):
 
     try:
         res = visitor.visit(tree)
+        if(res):
+            print(str(res))
     except Exception as e:
         print(repr(e))
         print("==============")

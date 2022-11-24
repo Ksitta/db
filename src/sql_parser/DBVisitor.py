@@ -7,6 +7,29 @@ from config import *
 from operators.operators import *
 
 class DBVisitor(SQLVisitor):
+    def visitProgram(self, ctx: SQLParser.ProgramContext):
+        stmts = ctx.statement()
+        if(stmts is None):
+            return
+        if(len(stmts) == 1):
+            return stmts[0].accept(self)
+        for each in stmts:
+            each.accept(self)
+        return
+    
+    def visitStatement(self, ctx: SQLParser.StatementContext):
+        if (ctx.db_statement()):
+            return ctx.db_statement().accept(self)
+        if (ctx.io_statement()):
+            return ctx.io_statement().accept(self)
+        if (ctx.table_statement()):
+            return ctx.table_statement().accept(self)
+        if (ctx.alter_statement()):
+            return ctx.alter_statement().accept(self)
+        if (ctx.Annotation()):
+            return ctx.Annotation().accept(self)
+        return None
+    
     def visitCreate_db(self, ctx: SQLParser.Create_dbContext):
         return sm_manager.create_db(str(ctx.Identifier()))
 
@@ -14,15 +37,15 @@ class DBVisitor(SQLVisitor):
         return sm_manager.drop_db(str(ctx.Identifier()))
 
     def visitShow_dbs(self, ctx: SQLParser.Show_dbsContext):
-        res = sm_manager.show_dbs()
-        print(res)   # TODO: use an elegant way to implement this
+        dbs = sm_manager.show_dbs()
+        return dbs
 
     def visitUse_db(self, ctx: SQLParser.Use_dbContext):
         return sm_manager.open_db(str(ctx.Identifier()))
 
     def visitShow_tables(self, ctx: SQLParser.Show_tablesContext):
         tables = sm_manager.show_tables()
-        print(tables)
+        return tables
         
     def visitShow_indexes(self, ctx: SQLParser.Show_indexesContext):
         return super().visitShow_indexes(ctx)
@@ -38,12 +61,11 @@ class DBVisitor(SQLVisitor):
         self._pk: list = list()
         self._fk: dict = dict()
         ctx.field_list().accept(self)
-        res = sm_manager.create_table(
+        sm_manager.create_table(
             str(ctx.Identifier()), self._attrs, self._pk, self._fk)
-        print(res)  # TODO: use an elegant way to implement this
 
     def visitDrop_table(self, ctx: SQLParser.Drop_tableContext):
-        return sm_manager.drop_table(str(ctx.Identifier()))
+        sm_manager.drop_table(str(ctx.Identifier()))
 
     def visitDescribe_table(self, ctx: SQLParser.Describe_tableContext):
         sm_manager.describe_table(str(ctx.Identifier()))
@@ -69,13 +91,6 @@ class DBVisitor(SQLVisitor):
         for each in selectors:
             if(each.table_name is None):
                 each.table_name = sm_manager.get_table_name(each.col_name, idents)
-                
-        # process select *
-        if(len(selectors) == 0):
-            for each in idents:
-                table = sm_manager.get_table(each)
-                cols = table.get_column_names()
-                selectors += [Col(col, each) for col in cols]
 
         # add scan node
         table_scan: Dict[str, OperatorBase] = {}
@@ -85,7 +100,8 @@ class DBVisitor(SQLVisitor):
         node = table_scan[idents[0]]
         
         # add project node
-        node = ProjectNode(node, selectors)
+        if(len(selectors) != 0):
+            node = ProjectNode(node, selectors)
 
         return node.process()
         

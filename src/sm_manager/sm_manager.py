@@ -6,13 +6,14 @@ from typing import Dict, Set, List
 from record_management.rm_record_manager import rm_manager
 from typing import List, Union
 from functools import wraps
+import shutil
 
 def require_using_db(func):
     @wraps(func)
     def wrapfunc(*args, **kwargs):
         if (sm_manager._using_db == ""):
             raise NoUsingDatabaseError("No database is using")
-        func(*args, **kwargs)
+        return func(*args, **kwargs)
     return wrapfunc
 
 class SM_Manager():
@@ -58,7 +59,7 @@ class SM_Manager():
         if (self._using_db == db_name):
             self.close_db()
         os.chdir(self._base_dir)
-        os.rmdir(db_name)
+        shutil.rmtree(db_name, ignore_errors=True)
         self._db_names.remove(db_name)
 
     def close_db(self):
@@ -134,6 +135,8 @@ class SM_Manager():
 
     @require_using_db
     def get_table(self, table_name: str) -> Table:
+        if(table_name not in self._tables):
+            raise TableNotExistsError(table_name)
         return self._tables[table_name]
 
     @require_using_db

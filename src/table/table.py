@@ -97,6 +97,7 @@ class Table():
                 break
             rec = self._file_handle.unpack_record(raw_record.data)
             records.append(Record(rec, raw_record.rid))
+        scaner.close_scan()
         return records
 
     def get_column_names(self) -> List[str]:
