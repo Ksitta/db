@@ -137,7 +137,21 @@ def test_pack_unpack_record():
     print(f'test_pack_unpack_record passed!')
     
 
+def test_record():
+    data = np.frombuffer(b'1234567890\x00\x01\x02\x03', dtype=np.uint8)
+    record1 = RM_Record(RM_Rid(10, 20), data)
+    record2 = RM_Record(RM_Rid(10, 20), data)
+    record3 = RM_Record(RM_Rid(10, 30), data)
+    record_set = set()
+    record_set.add(record1)
+    record_set.add(record2)
+    record_set.add(record3)
+    assert len(record_set) == 2
+    print(f'test_record passed!')
+
+
 def test():
     print(f'-------- Test record management --------')
     test_meta()
     test_pack_unpack_record()
+    test_record()

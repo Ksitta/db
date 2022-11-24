@@ -44,6 +44,104 @@ class RM_FileHandle:
         pf_manager.write_page(self.data_file_id, page_no, page)
         
         
+    @staticmethod
+    def _serialize_meta(meta:dict) -> np.ndarray:
+        ''' Serialize meta dict in to meta pages.
+        args:
+            meta: dict, as specified in self.init_meta.
+        return:
+            np.ndarray[(meta_page_number, PAGE_SIZE), uint8].
+        '''
+        BYTE_ORDER, off = cf.BYTE_ORDER, 0
+        meta_pages = np.zeros((cf.PAGE_SIZE * meta['meta_page_number'],), dtype=np.uint8)
+        data = struct.pack(f'{BYTE_ORDER}iiiiiiii', meta['record_size'], meta['record_per_page'],
+            meta['bitmap_size'], meta['meta_page_number'], meta['page_number'], meta['record_number'],
+            meta['next_free_page'], meta['column_number'])
+        meta_pages[off:off+len(data)] = np.frombuffer(data, dtype=np.uint8)
+        off += len(data)
+        for col in meta['columns']:
+            data = struct.pack(f'{BYTE_ORDER}iii', col['column_type'],
+                col['column_size'], col['column_name_length'])
+            meta_pages[off:off+len(data)] = np.frombuffer(data, dtype=np.uint8); off += len(data)
+            data = bytes(col['column_name'], encoding='utf-8')[:col['column_name_length']]
+            meta_pages[off:off+len(data)] = np.frombuffer(data, dtype=np.uint8); off += len(data)
+            data = (struct.pack(f'{BYTE_ORDER}b', col['column_default_en'])
+                + col['column_default'][:col['column_size']].tobytes())
+            meta_pages[off:off+len(data)] = np.frombuffer(data, dtype=np.uint8); off += len(data)
+        primary_key_size = meta['primary_key_size']
+        foreign_key_number = meta['foreign_key_number']
+        data = struct.pack(f'{BYTE_ORDER}i{primary_key_size}ii', primary_key_size,
+            *(meta['primary_keys'][:primary_key_size]), foreign_key_number)
+        meta_pages[off:off+len(data)] = np.frombuffer(data, dtype=np.uint8); off += len(data)
+        for fk in meta['foreign_keys']:
+            len1 = fk['foreign_key_name_length']
+            len2 = fk['target_table_name_length']
+            len3 = fk['foreign_key_size']
+            pairs = list(np.array(fk['foreign_key_pairs'][:len3]).reshape(-1))
+            data = struct.pack(f'{BYTE_ORDER}i{len1}si{len2}si{2*len3}i', len1,
+                bytes(fk['foreign_key_name'], encoding='utf-8')[:len1], len2,
+                bytes(fk['target_table_name'], encoding='utf-8')[:len2], len3, *pairs)
+            meta_pages[off:off+len(data)] = np.frombuffer(data, dtype=np.uint8); off += len(data)
+        meta_pages = meta_pages.reshape((meta['meta_page_number'], cf.PAGE_SIZE))
+        return meta_pages
+        
+    
+    @staticmethod
+    def _deserialize_meta(meta_pages:np.ndarray) -> dict:
+        ''' Deserialize meta_pages into meta dict.
+        args:
+            meta_pages: np.ndarray[(meta_page_number, PAGE_SIZE), uint8]
+        return: 
+            dict, as specified in self.init_meta.
+        '''
+        BYTE_ORDER = cf.BYTE_ORDER
+        data = meta_pages.reshape(-1).tobytes()
+        (record_size, record_per_page, bitmap_size, meta_page_number, page_number, record_number,
+            next_free_page, column_number) = struct.unpack(f'{BYTE_ORDER}iiiiiiii', data[:32])
+        off = 32
+        columns = []
+        for _ in range(column_number):
+            (column_type, column_size, column_name_length) = struct.unpack(f'{BYTE_ORDER}iii', data[off:off+12])
+            off += 12
+            column_name = str(data[off:off+column_name_length], encoding='utf-8')
+            off += column_name_length
+            (column_default_en,) = struct.unpack(f'{BYTE_ORDER}b', data[off:off+1])
+            off += 1
+            column_default = np.frombuffer(data[off:off+column_size], dtype=np.uint8)
+            off += column_size
+            columns.append({'column_type': column_type, 'column_size': column_size, 'column_name_length': column_name_length,
+                'column_name': column_name, 'column_default_en': column_default_en, 'column_default': column_default})
+        (primary_key_size,) = struct.unpack(f'{BYTE_ORDER}i', data[off:off+4])
+        off += 4
+        primary_keys = []
+        if primary_key_size > 0:
+            primary_keys = list(struct.unpack(f'{BYTE_ORDER}{primary_key_size}i', data[off:off+primary_key_size*4]))
+        off += primary_key_size * 4
+        (foreign_key_number,) = struct.unpack(f'{BYTE_ORDER}i', data[off:off+4])
+        off += 4
+        foreign_keys = []
+        for _ in range(foreign_key_number):
+            (foreign_key_name_length,) = struct.unpack(f'{BYTE_ORDER}i', data[off:off+4]); off += 4
+            (foreign_key_name,) = struct.unpack(f'{BYTE_ORDER}{foreign_key_name_length}s',
+                data[off:off+foreign_key_name_length]); off += foreign_key_name_length
+            (target_table_name_length,) = struct.unpack(f'{BYTE_ORDER}i', data[off:off+4]); off += 4
+            (target_table_name,) = struct.unpack(f'{BYTE_ORDER}{target_table_name_length}s',
+                data[off:off+target_table_name_length]); off += target_table_name_length
+            (foreign_key_size,) = struct.unpack(f'{BYTE_ORDER}i', data[off:off+4]); off += 4
+            pairs = list(struct.unpack(f'{BYTE_ORDER}{2*foreign_key_size}i',
+                data[off:off+8*foreign_key_size])); off += 8*foreign_key_size
+            foreign_key_pairs = [(pairs[i], pairs[i+1]) for i in range(0, foreign_key_size*2, 2)]
+            foreign_keys.append({'foreign_key_name_length': foreign_key_name_length, 'foreign_key_name': foreign_key_name,
+                'target_table_name_length': target_table_name_length, 'target_table_name': target_table_name,
+                'foreign_key_size': foreign_key_size, 'foreign_key_pairs': foreign_key_pairs})    
+        meta = {'record_size': record_size, 'record_per_page': record_per_page, 'bitmap_size': bitmap_size,
+            'meta_page_number': meta_page_number, 'page_number': page_number, 'record_number': record_number,
+            'next_free_page': next_free_page, 'column_number': column_number, 'columns': columns,
+            'primary_key_size': primary_key_size, 'primary_keys': primary_keys,
+            'foreign_key_number': foreign_key_number, 'foreign_keys': foreign_keys}
+        return meta
+        
+        
     def init_meta(self, meta:dict) -> None:
         ''' Set the file meta info, used ONLY when this file was just created.
             Store the meta info to .meta file after calculating.
@@ -90,58 +188,21 @@ class RM_FileHandle:
         if record_size > max_record_size:
             raise InitMetaError(f'Record size {record_size} is too large, must <= {max_record_size}.')
         record_per_page = int((cf.PAGE_SIZE-RM_PageHeader.size()-1) / (record_size+1/8))
-        bitmap_size = (record_per_page + 7) // 8
-        page_number = 0
-        record_number = 0
-        next_free_page = cf.INVALID
-        column_number = meta['column_number']
-        columns = meta['columns']
-        primary_key_size = meta['primary_key_size']
-        primary_keys = meta['primary_keys']
-        foreign_key_number = meta['foreign_key_number']
-        foreign_keys = meta['foreign_keys']
         total_size = 40     # 10 fixed ints
-        for col in columns:
+        for col in meta['columns'][:meta['column_number']]:
             total_size += (13 + col['column_name_length'] + col['column_size'])
-        total_size += 4 * primary_key_size
-        for fk in foreign_keys:
+        total_size += 4 * meta['primary_key_size']
+        for fk in meta['foreign_keys']:
             total_size += (12 + fk['foreign_key_name_length'] + fk['target_table_name_length'] + 8 * fk['foreign_key_size'])
         meta_page_number = (total_size + cf.PAGE_SIZE - 1) // cf.PAGE_SIZE
-        meta = {'record_size': record_size, 'record_per_page': record_per_page, 'bitmap_size': bitmap_size,
-            'meta_page_number': meta_page_number, 'page_number': page_number, 'record_number': record_number,
-            'next_free_page': next_free_page, 'column_number': column_number, 'columns': columns,
-            'primary_key_size': primary_key_size, 'primary_keys': primary_keys, 'foreign_key_number': foreign_key_number,
-            'foreign_keys': foreign_keys}
-        self.meta = meta
+        new_meta = {'record_size': record_size, 'record_per_page': record_per_page, 'bitmap_size': (record_per_page + 7) // 8,
+            'meta_page_number': meta_page_number, 'page_number': 0, 'record_number': 0,
+            'next_free_page': cf.INVALID, 'column_number': meta['column_number'], 'columns': meta['columns'],
+            'primary_key_size': meta['primary_key_size'], 'primary_keys': meta['primary_keys'], 'foreign_key_number': meta['foreign_key_number'],
+            'foreign_keys': meta['foreign_keys']}
+        self.meta = new_meta
         # store meta info in the pages
-        BYTE_ORDER = cf.BYTE_ORDER
-        off = 0
-        meta_pages = np.zeros((cf.PAGE_SIZE * meta_page_number,), dtype=np.uint8)
-        data = struct.pack(f'{BYTE_ORDER}iiiiiiii', record_size, record_per_page, bitmap_size,
-            meta_page_number, page_number, record_number, next_free_page, column_number)
-        meta_pages[off:off+len(data)] = np.frombuffer(data, dtype=np.uint8); off += len(data)
-        for col in columns:
-            data = struct.pack(f'{BYTE_ORDER}iii', col['column_type'],
-                col['column_size'], col['column_name_length'])
-            meta_pages[off:off+len(data)] = np.frombuffer(data, dtype=np.uint8); off += len(data)
-            data = bytes(col['column_name'], encoding='utf-8')[:col['column_name_length']]
-            meta_pages[off:off+len(data)] = np.frombuffer(data, dtype=np.uint8); off += len(data)
-            data = (struct.pack(f'{BYTE_ORDER}b',bool(col['column_default_en']))
-                + col['column_default'][:col['column_size']].tobytes())
-            meta_pages[off:off+len(data)] = np.frombuffer(data, dtype=np.uint8); off += len(data)
-        data = struct.pack(f'{BYTE_ORDER}i{primary_key_size}ii', primary_key_size,
-            *(primary_keys[:primary_key_size]), foreign_key_number)
-        meta_pages[off:off+len(data)] = np.frombuffer(data, dtype=np.uint8); off += len(data)
-        for fk in foreign_keys:
-            len1 = fk['foreign_key_name_length']
-            len2 = fk['target_table_name_length']
-            len3 = fk['foreign_key_size']
-            pairs = list(np.array(fk['foreign_key_pairs'][:len3]).reshape(-1))
-            data = struct.pack(f'{BYTE_ORDER}i{len1}si{len2}si{2*len3}i', len1,
-                bytes(fk['foreign_key_name'], encoding='utf-8')[:len1], len2,
-                bytes(fk['target_table_name'], encoding='utf-8')[:len2], len3, *pairs)
-            meta_pages[off:off+len(data)] = np.frombuffer(data, dtype=np.uint8); off += len(data)
-        meta_pages = meta_pages.reshape((meta_page_number, cf.PAGE_SIZE))
+        meta_pages = self._serialize_meta(self.meta)
         for i in range(meta_page_number):
             pf_manager.append_page(self.meta_file_id, meta_pages[i,:])
         self.meta_modified = False
@@ -165,50 +226,8 @@ class RM_FileHandle:
         meta_pages = [first_page]
         for i in range(1, meta_page_number):
             meta_pages.append(pf_manager.read_page(self.meta_file_id, i))
-        data = np.concatenate(meta_pages).tobytes()
-        (record_size, record_per_page, bitmap_size, meta_page_number, page_number, record_number,
-            next_free_page, column_number) = struct.unpack(f'{BYTE_ORDER}iiiiiiii', data[:32])
-        off = 32
-        columns = []
-        for _ in range(column_number):
-            (column_type, column_size, column_name_length) = struct.unpack(f'{BYTE_ORDER}iii', data[off:off+12])
-            off += 12
-            column_name = str(data[off:off+column_name_length], encoding='utf-8')
-            off += column_name_length
-            (column_default_en,) = struct.unpack(f'{BYTE_ORDER}b', data[off:off+1])
-            off += 1
-            column_default = np.frombuffer(data[off:off+column_size], dtype=np.uint8)
-            off += column_size
-            columns.append({'column_type': column_type, 'column_size': column_size, 'column_name_length': column_name_length,
-                'column_name': column_name, 'column_default_en': column_default_en, 'column_default': column_default})
-        (primary_key_size,) = struct.unpack(f'{BYTE_ORDER}i', data[off:off+4])
-        off += 4
-        primary_keys = []
-        if primary_key_size > 0:
-            primary_keys = list(struct.unpack(f'{BYTE_ORDER}{primary_key_size}i', data[off:off+primary_key_size*4]))
-        off += primary_key_size * 4
-        (foreign_key_number,) = struct.unpack(f'{BYTE_ORDER}i', data[off:off+4])
-        off += 4
-        foreign_keys = []
-        for _ in range(foreign_key_number):
-            (foreign_key_name_length,) = struct.unpack(f'{BYTE_ORDER}i', data[off:off+4]); off += 4
-            (foreign_key_name,) = struct.unpack(f'{BYTE_ORDER}{foreign_key_name_length}s',
-                data[off:off+foreign_key_name_length]); off += foreign_key_name_length
-            (target_table_name_length,) = struct.unpack(f'{BYTE_ORDER}i', data[off:off+4]); off += 4
-            (target_table_name,) = struct.unpack(f'{BYTE_ORDER}{target_table_name_length}s',
-                data[off:off+target_table_name_length]); off += target_table_name_length
-            (foreign_key_size,) = struct.unpack(f'{BYTE_ORDER}i', data[off:off+4]); off += 4
-            pairs = list(struct.unpack(f'{BYTE_ORDER}{2*foreign_key_size}i',
-                data[off:off+8*foreign_key_size])); off += 8*foreign_key_size
-            foreign_key_pairs = [(pairs[i], pairs[i+1]) for i in range(0, foreign_key_size*2, 2)]
-            foreign_keys.append({'foreign_key_name_length': foreign_key_name_length, 'foreign_key_name': foreign_key_name,
-                'target_table_name_length': target_table_name_length, 'target_table_name': target_table_name,
-                'foreign_key_size': foreign_key_size, 'foreign_key_pairs': foreign_key_pairs})    
-        self.meta = {'record_size': record_size, 'record_per_page': record_per_page, 'bitmap_size': bitmap_size,
-            'meta_page_number': meta_page_number, 'page_number': page_number, 'record_number': record_number,
-            'next_free_page': next_free_page, 'column_number': column_number, 'columns': columns,
-            'primary_key_size': primary_key_size, 'primary_keys': primary_keys,
-            'foreign_key_number': foreign_key_number, 'foreign_keys': foreign_keys}
+        meta_pages = np.row_stack(meta_pages)
+        self.meta = self._deserialize_meta(meta_pages)
         self.meta_modified = False
         return self.meta
     
@@ -223,39 +242,22 @@ class RM_FileHandle:
         if not self.is_opened:
             raise FileNotOpenedError(f'File {self.file_name} not opened.')
         if not self.meta_modified: return
-        BYTE_ORDER = cf.BYTE_ORDER
-        meta, off = self.meta, 0
-        meta_pages = np.zeros((cf.PAGE_SIZE * meta['meta_page_number'],), dtype=np.uint8)
-        data = struct.pack(f'{BYTE_ORDER}iiiiiiii', meta['record_size'], meta['record_per_page'],
-            meta['bitmap_size'], meta['meta_page_number'], meta['page_number'], meta['record_number'],
-            meta['next_free_page'], meta['column_number'])
-        meta_pages[off:off+len(data)] = np.frombuffer(data, dtype=np.uint8)
-        off += len(data)
-        for col in meta['columns']:
-            data = struct.pack(f'{BYTE_ORDER}iii', col['column_type'],
-                col['column_size'], col['column_name_length'])
-            meta_pages[off:off+len(data)] = np.frombuffer(data, dtype=np.uint8); off += len(data)
-            data = bytes(col['column_name'], encoding='utf-8')[:col['column_name_length']]
-            meta_pages[off:off+len(data)] = np.frombuffer(data, dtype=np.uint8); off += len(data)
-            data = (struct.pack(f'{BYTE_ORDER}b', col['column_default_en'])
-                + col['column_default'][:col['column_size']].tobytes())
-            meta_pages[off:off+len(data)] = np.frombuffer(data, dtype=np.uint8); off += len(data)
-        primary_key_size = meta['primary_key_size']
-        foreign_key_number = meta['foreign_key_number']
-        data = struct.pack(f'{BYTE_ORDER}i{primary_key_size}ii', primary_key_size,
-            *(meta['primary_keys'][:primary_key_size]), foreign_key_number)
-        meta_pages[off:off+len(data)] = np.frombuffer(data, dtype=np.uint8); off += len(data)
-        for fk in meta['foreign_keys']:
-            len1 = fk['foreign_key_name_length']
-            len2 = fk['target_table_name_length']
-            len3 = fk['foreign_key_size']
-            pairs = list(np.array(fk['foreign_key_pairs'][:len3]).reshape(-1))
-            data = struct.pack(f'{BYTE_ORDER}i{len1}si{len2}si{2*len3}i', len1,
-                bytes(fk['foreign_key_name'], encoding='utf-8')[:len1], len2,
-                bytes(fk['target_table_name'], encoding='utf-8')[:len2], len3, *pairs)
-            meta_pages[off:off+len(data)] = np.frombuffer(data, dtype=np.uint8); off += len(data)
-        meta_pages = meta_pages.reshape((meta['meta_page_number'], cf.PAGE_SIZE))
+        meta_pages = self._serialize_meta(self.meta)
         pf_manager.write_page(self.meta_file_id, 0, meta_pages[0,:])
+        self.meta_modified = False
+        
+    
+    def set_primary_foreign_key(self, info:dict) -> None:
+        ''' Change primary and foreign keys in meta and sync to disk.
+        args:
+            info: dict, must contain 'primary_key_size', 'primary_keys',
+                'foreign_key_number', 'foreign_keys', other fields will be ignored.
+        '''
+        for key in ('primary_key_size', 'primary_keys', 'foreign_key_number', 'foreign_keys'):
+            self.meta[key] = info[key]
+        meta_pages = self._serialize_meta(self.meta)
+        for i in range(self.meta['meta_page_number']):
+            pf_manager.write_page(self.meta_file_id, i, meta_pages[i,:])
         self.meta_modified = False
         
     
