@@ -3,6 +3,7 @@ from records.record import Record, RecordList
 from typing import List
 from table.table import Table
 from operators.conditions import Condition
+from common.common import *
 
 
 class OperatorBase:
@@ -20,9 +21,9 @@ class ProjectNode(OperatorBase):
         with only the specified columns.
     """
 
-    def __init__(self, child: OperatorBase, columns: List[str]) -> None:
+    def __init__(self, child: OperatorBase, columns: List[Col]) -> None:
         self._child: OperatorBase = child
-        self._columns: List[str] = columns
+        self._columns: List[Col] = columns
 
     def process(self) -> RecordList:
         inlist = self._child.process()
@@ -31,7 +32,7 @@ class ProjectNode(OperatorBase):
         proj: List[int] = list()
         while i != len(self._columns):
             while j != len(self._columns):
-                if self._columns[i] == inlist.columns[j].name:
+                if self._columns[i].col_name == inlist.columns[j].col_name and self._columns[i].table_name == inlist.columns[j].table_name:
                     proj.append(j)
                     break
                 j += 1
@@ -70,7 +71,9 @@ class TableScanNode(OperatorBase):
 
     def process(self) -> RecordList:
         result: List[Record] = self._table.load_all_records()
-        return RecordList(result, self._table.get_column_names())
+        table_name = self._table.get_name()
+        cols = [Col(table_name, each.name) for each in self._table.get_column_names()]
+        return RecordList(result, cols)
 
 
 class JoinNode(OperatorBase):

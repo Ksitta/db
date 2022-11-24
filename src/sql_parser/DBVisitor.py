@@ -2,24 +2,9 @@ from sql_parser.SQLVisitor import SQLVisitor
 from sql_parser.SQLParser import SQLParser
 from sm_manager.sm_manager import sm_manager
 from table.table import Column
-from typing import List
+from typing import List, Dict
 from config import *
-from enum import Enum
-
-class Operator(Enum):
-    OP_EQ = 0
-    OP_LT = 1
-    OP_LE = 2
-    OP_GT = 3
-    OP_GE = 4
-    OP_NE = 5
-
-class Aggregator(Enum):
-    COUNT = 0
-    AVG = 1
-    MAX = 2
-    MIN = 3
-    SUM = 4
+from operators.operators import *
 
 class DBVisitor(SQLVisitor):
     def visitCreate_db(self, ctx: SQLParser.Create_dbContext):
@@ -76,15 +61,36 @@ class DBVisitor(SQLVisitor):
         table_name = str(ctx.Identifier())
 
 
-    # def visitSelect_table_(self, ctx: SQLParser.Select_table_Context):
-        # pass
+    def visitSelect_table_(self, ctx: SQLParser.Select_table_Context):
+        return ctx.accept(self)
 
     def visitSelect_table(self, ctx: SQLParser.Select_tableContext):
-        selectors = ctx.selectors().accept(self)
+        selectors: List[Col] = ctx.selectors().accept(self)
         idents = ctx.identifiers().accept(self)
         where_clause = ctx.where_and_clause().accept(self)
+        for each in selectors:
+            if(each.table_name is None):
+                each.table_name = sm_manager.get_table_name(each.col_name, idents)
+                
+        # process select *
+        if(len(selectors) == 0):
+            for each in idents:
+                table = sm_manager.get_table(each)
+                cols = table.get_column_names()
+                selectors += [Col(col, each) for col in cols]
 
+        # add scan node
+        table_scan: Dict[str, OperatorBase] = {}
+        for each in idents:
+            table_scan[each] = TableScanNode(sm_manager.get_table(each))
+        
+        node = table_scan[idents[0]]
+        
+        # add project node
+        node = ProjectNode(node, selectors)
 
+        return node.process()
+        
     def visitAlter_add_index(self, ctx: SQLParser.Alter_add_indexContext):
         table_name = str(ctx.Identifier())
         idents = ctx.identifiers().accept(self)
@@ -99,7 +105,6 @@ class DBVisitor(SQLVisitor):
         pass
 
     def visitAlter_table_drop_foreign_key(self, ctx: SQLParser.Alter_table_drop_foreign_keyContext):
-
         pass
 
     def visitAlter_table_add_pk(self, ctx: SQLParser.Alter_table_add_pkContext):
@@ -210,12 +215,12 @@ class DBVisitor(SQLVisitor):
         col = ctx.column.accept(self)
         pass
 
-    def visitColumn(self, ctx: SQLParser.ColumnContext):
+    def visitColumn(self, ctx: SQLParser.ColumnContext) -> Col:
         table_name = ctx.Identifier(0)
         if(table_name is not None):
             table_name = str(table_name)
         col_name = str(ctx.Identifier(1))
-        return (table_name, col_name)
+        return Col(table_name, col_name)
 
     def visitExpression(self, ctx: SQLParser.ExpressionContext):
         pass
@@ -224,17 +229,17 @@ class DBVisitor(SQLVisitor):
         pass
 
     def visitSelectors(self, ctx: SQLParser.SelectorsContext):
-        selectors = [each.accept(self) for each in ctx.selector()]
-        return selectors
+        if(ctx.selector() is not None):
+            return [each.accept(self) for each in ctx.selector()]
+        return []
 
     def visitSelector(self, ctx: SQLParser.SelectorContext):
-        if (ctx.Identifier() is not None):
-            return ctx.Identifier().accept(self)
-        if (ctx.aggregator() is not None):
-            col = ctx.column().accept(self)
-            aggr = ctx.aggregator().accept(self)
-            return (aggr, col)
-        return Aggregator.COUNT
+        if(ctx.column() is not None):
+            col: Col = ctx.column().accept(self)
+            if(ctx.aggregator() is not None):
+                col.aggregator = ctx.aggregator().accept(self)
+            return col
+        return Col(None, None, Aggregator.COUNT)
     
     def visitIdentifiers(self, ctx: SQLParser.IdentifiersContext):
         idents: List[str] = [str(each) for each in ctx.Identifier()]

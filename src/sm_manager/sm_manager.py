@@ -118,6 +118,9 @@ class SM_Manager():
     def set(self, param_name: str, value: str):
         pass
 
+    def get_table(self, table_name: str) -> Table:
+        return self._tables[table_name]
+
     def get_table_name(self, col_name: str, tables: List[str]) -> str:
         found: bool = False
         for each in tables:

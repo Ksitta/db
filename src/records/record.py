@@ -2,7 +2,7 @@ from config import *
 import numpy as np
 from typing import List, Union
 from record_management.rm_rid import RM_Rid
-
+from common.common import *
 
 class Column():
     def __init__(self, name: str, type: int, size: int, nullable: bool, default_val=None) -> None:
@@ -49,9 +49,9 @@ class Record():
 
 
 class RecordList():
-    def __init__(self, columns: List[str] = list(), records: List[Record] = None) -> None:
+    def __init__(self, columns: List[Col] = list(), records: List[Record] = list()) -> None:
         self.records: List[Record] = records
-        self.columns: List[str] = columns
+        self.columns: List[Col] = columns
 
     def append(self, record: Record):
         self.records.append(record)
