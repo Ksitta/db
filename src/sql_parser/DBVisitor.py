@@ -60,14 +60,12 @@ class DBVisitor(SQLVisitor):
     def visitUpdate_table(self, ctx: SQLParser.Update_tableContext):
         table_name = str(ctx.Identifier())
 
-
-    def visitSelect_table_(self, ctx: SQLParser.Select_table_Context):
-        return ctx.accept(self)
-
     def visitSelect_table(self, ctx: SQLParser.Select_tableContext):
         selectors: List[Col] = ctx.selectors().accept(self)
         idents = ctx.identifiers().accept(self)
-        where_clause = ctx.where_and_clause().accept(self)
+        where_clause = None
+        if(ctx.where_and_clause()):
+            where_clause = ctx.where_and_clause().accept(self)
         for each in selectors:
             if(each.table_name is None):
                 each.table_name = sm_manager.get_table_name(each.col_name, idents)

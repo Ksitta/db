@@ -5,6 +5,15 @@ from table.table import Table
 from typing import Dict, Set, List
 from record_management.rm_record_manager import rm_manager
 from typing import List, Union
+from functools import wraps
+
+def require_using_db(func):
+    @wraps(func)
+    def wrapfunc(*args, **kwargs):
+        if (sm_manager._using_db == ""):
+            raise NoUsingDatabaseError("No database is using")
+        func(*args, **kwargs)
+    return wrapfunc
 
 class SM_Manager():
     def __init__(self):
@@ -64,12 +73,12 @@ class SM_Manager():
     def show_dbs(self):
         return self._db_names
 
+    @require_using_db
     def show_tables(self):
         return self._tables.keys()
 
+    @require_using_db
     def create_table(self, rel_name: str, columns: list, pk: list, fk: dict):
-        if (self._using_db == ""):
-            raise NoUsingDatabaseError(f'No database is opened')
         if (rel_name in self._tables):
             raise TableExistsError(rel_name)
         names = set(columns)
@@ -80,6 +89,7 @@ class SM_Manager():
                 raise NoSuchColumnError(each)
         self._tables[rel_name] = Table(rel_name, columns, pk, fk)
 
+    @require_using_db
     def describe_table(self, rel_name: str):
         if (self._using_db == ""):
             raise NoUsingDatabaseError((f'No database is opened'))
@@ -87,6 +97,7 @@ class SM_Manager():
             raise TableNotExistsError(rel_name)
         self._tables[rel_name].describe()
 
+    @require_using_db
     def drop_table(self, rel_name: str):
         if (self._using_db == ""):
             raise NoUsingDatabaseError((f'No database is opened'))
@@ -95,6 +106,7 @@ class SM_Manager():
         self._tables.remove(rel_name)
         rm_manager.remove_file(rel_name)
 
+    @require_using_db
     def insert(self, rel_name: str, values: List[List[Union[int, float, str]]]):
         if (self._using_db == ""):
             raise NoUsingDatabaseError((f'No database is opened'))
@@ -103,9 +115,11 @@ class SM_Manager():
         for each in values:
             self._tables[rel_name].insert_record(each)
 
+    @require_using_db
     def create_index(self, rel_name: str, idents: list):
         pass
 
+    @require_using_db
     def drop_index(self, rel_name: str, idents: list):
         pass
 
@@ -118,9 +132,11 @@ class SM_Manager():
     def set(self, param_name: str, value: str):
         pass
 
+    @require_using_db
     def get_table(self, table_name: str) -> Table:
         return self._tables[table_name]
 
+    @require_using_db
     def get_table_name(self, col_name: str, tables: List[str]) -> str:
         found: bool = False
         for each in tables:
