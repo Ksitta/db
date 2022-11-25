@@ -6,10 +6,17 @@ from records.record import Record, Column
 import numpy as np
 from typing import List, Union
 from config import *
+from common.common import *
 import struct
 
 
 class Table():
+    def get_column_idx(self, col: Col) -> int:
+        for i in range(len(self._columns)):
+            each = self._columns[i]
+            if each.col_name == col.col_name and each.table_name == col.table_name:
+                return i
+
     def describe(self):
         result: List[List[str, int]] = list()
         for each in self._columns:

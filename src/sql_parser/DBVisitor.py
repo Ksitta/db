@@ -2,7 +2,7 @@ from sql_parser.SQLVisitor import SQLVisitor
 from sql_parser.SQLParser import SQLParser
 from sm_manager.sm_manager import sm_manager
 from table.table import Column
-from typing import List, Dict
+from typing import List, Dict, Tuple
 from config import *
 from operators.operators import *
 from common.disjointset import DisjointSet
@@ -78,11 +78,23 @@ class DBVisitor(SQLVisitor):
 
     def visitDelete_from_table(self, ctx: SQLParser.Delete_from_tableContext):
         table_name = str(ctx.Identifier())
+        self._table_scan[table_name] = TableScanNode(sm_manager.get_table(table_name))
+        where_clause = ctx.where_and_clause().accept(self)
         
+        node = self._table_scan[table_name]
+        records: RecordList = node.process()
+        sm_manager.delete(table_name, records)
+
         
     def visitUpdate_table(self, ctx: SQLParser.Update_tableContext):
         table_name = str(ctx.Identifier())
-
+        self._table_scan[table_name] = TableScanNode(sm_manager.get_table(table_name))
+        where_clause = ctx.where_and_clause().accept(self)
+        set_clause = ctx.set_clause().accept(self)
+        node = self._table_scan[table_name]
+        records: RecordList = node.process()
+        sm_manager.update(table_name, records, set_clause)
+        
     def visitSelect_table(self, ctx: SQLParser.Select_tableContext):
         selectors: List[Col] = ctx.selectors().accept(self)
         idents = ctx.identifiers().accept(self)
@@ -262,7 +274,9 @@ class DBVisitor(SQLVisitor):
         return ctx.accept(self)
 
     def visitSet_clause(self, ctx: SQLParser.Set_clauseContext):
-        pass
+        idents = [each.accept(self) for each in ctx.Identifier()]
+        values = [each.accept(self) for each in ctx.value()]
+        return list(zip(idents, values))
 
     def visitSelectors(self, ctx: SQLParser.SelectorsContext):
         if(ctx.selector() is not None):

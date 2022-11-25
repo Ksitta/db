@@ -42,3 +42,9 @@ class RecordList():
 
     def set_columns(self, columns: List[Col]):
         self.columns = columns
+
+    def get_column_idx(self, col: Col) -> int:
+        for i in range(len(self.columns)):
+            each = self.columns[i]
+            if each.col_name == col.col_name and each.table_name == col.table_name:
+                return i

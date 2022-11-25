@@ -4,7 +4,9 @@ from config import *
 from table.table import Table
 from typing import Dict, Set, List
 from record_management.rm_record_manager import rm_manager
-from typing import List, Union
+from record_management.rm_rid import RM_Rid
+from records.record import Record, RecordList
+from typing import List, Union, Tuple
 from functools import wraps
 import shutil
 
@@ -109,12 +111,32 @@ class SM_Manager():
 
     @require_using_db
     def insert(self, rel_name: str, values: List[List[Union[int, float, str]]]):
-        if (self._using_db == ""):
-            raise NoUsingDatabaseError((f'No database is opened'))
         if (rel_name not in self._tables):
             raise TableNotExistsError(rel_name)
         for each in values:
             self._tables[rel_name].insert_record(each)
+
+    @require_using_db
+    def delete(self, rel_name: str, records: RecordList):
+        if (rel_name not in self._tables):
+            raise TableNotExistsError(rel_name)
+        for each in records.records:
+            self._tables[rel_name].delete_record(each.rid)
+
+    @require_using_db
+    def update(self, rel_name: str, records: RecordList, set_clause: List[Tuple(str, Union[int, float, str])]):
+        if (rel_name not in self._tables):
+            raise TableNotExistsError(rel_name)
+        up_list: List[Tuple(int, Union[int, float, str, None])] = []
+        table = self._tables[rel_name]
+        for each in set_clause:
+            idx = table.get_column_idx(each[0])
+            up_list.append((idx, each[1]))
+        for each in records.records:
+            for idx, val in up_list:
+                each[idx] = val
+            table.update_record(each.rid, each)
+        
 
     @require_using_db
     def create_index(self, rel_name: str, idents: list):
