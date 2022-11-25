@@ -6,6 +6,7 @@ from records.record import Record, Column
 import numpy as np
 from typing import List, Union
 from config import *
+import struct
 
 
 class Table():
@@ -36,7 +37,8 @@ class Table():
             meta['column_number'] = len(columns)
 
             record_size: int = 0
-            columns: list = list()
+
+            meta_columns: list = list()
 
             for i in columns:
                 each: Column = i
@@ -45,11 +47,24 @@ class Table():
                 column['column_size'] = each.size
                 column['column_name_length'] = len(each.name)
                 column['column_name'] = each.name
-                columns.append(column)
+                column['column_default_en'] = each.default_val != None
+                column['column_default'] = np.zeros(each.size, dtype=np.uint8)
+                if(each.default_val != None):
+                    if(each.type == TYPE_INT):
+                        column['column_default'][0:each.size] = np.frombuffer(struct.pack(f'{BYTE_ORDER}i', each.default_val), dtype=np.uint8)
+                    if(each.type == TYPE_FLOAT):
+                        column['column_default'][0:each.size] = np.frombuffer(struct.pack(f'{BYTE_ORDER}d', each.default_val), dtype=np.uint8)
+                    if(each.type == TYPE_STR):
+                        s = bytes(each.default_val, encoding='utf-8')[:each.size]
+                        column['column_default'][0:each.size] = np.frombuffer(s, dtype=np.uint8)
+                meta_columns.append(column)
                 record_size += len(each.name)
-            meta['columns'] = columns
+            
             meta['record_size'] = record_size
-            meta['primary_key_size'] = len(pk)
+            meta['column_number'] = len(meta_columns)
+            meta['columns'] = meta_columns
+
+            meta['primary_key_size'] = 0
             meta['primary_keys'] = []
             meta['foreign_key_number'] = 0  # TODO
             meta['foreign_keys'] = []
