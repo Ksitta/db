@@ -86,9 +86,6 @@ class DBVisitor(SQLVisitor):
     def visitSelect_table(self, ctx: SQLParser.Select_tableContext):
         selectors: List[Col] = ctx.selectors().accept(self)
         idents = ctx.identifiers().accept(self)
-        where_clause = None
-        if(ctx.where_and_clause()):
-            where_clause = ctx.where_and_clause().accept(self)
 
         idents_set = set(idents)
         if len(idents_set) != len(idents):
@@ -101,16 +98,19 @@ class DBVisitor(SQLVisitor):
                 each.table_name = sm_manager.get_table_name(each.col_name, idents)
 
         # add scan node
-        table_scan: Dict[str, OperatorBase] = {}
+        self._table_scan: Dict[str, OperatorBase] = {}
         for each in idents:
-            table_scan[each] = TableScanNode(sm_manager.get_table(each))
-                
+            self._table_scan[each] = TableScanNode(sm_manager.get_table(each))
+
+        if(ctx.where_and_clause()):
+            where_clause = ctx.where_and_clause().accept(self)
+        
         for each in idents[1:]:
             if (djset.is_connect(idents[0], each)):
                 continue
             raise Exception("Not all tables are joined")
 
-        node = table_scan[djset.find(idents[0])]
+        node = self._table_scan[djset.find(idents[0])]
 
         # add project node
         if(len(selectors) != 0):
@@ -219,8 +219,17 @@ class DBVisitor(SQLVisitor):
         return [each.accept(self) for each in ctx.where_clause()]
 
     def visitWhere_operator_expression(self, ctx: SQLParser.Where_operator_expressionContext):
-        col = ctx.column.accept(self)
-        pass
+        col: Col = ctx.column.accept(self)
+        op = ctx.operator_.accept(self)
+        exp = ctx.expression.accept(self)
+        if (type(exp) is Col):
+            left = self._table_scan[col.table_name]
+            right = self._table_scan[exp.table_name]
+            cond = JoinCondition(left.get_column_idx(col), right.get_column_idx(exp))
+            self._table_scan[col.table_name + '.' + exp.table_name] = JoinNode(left, right, cond)
+            return
+        cond = AlgebraCondition(col, op, exp)
+        self._table_scan[col.table_name] = FilterNode(self._table_scan[col.table_name], cond)
 
     def visitWhere_operator_select(self, ctx: SQLParser.Where_operator_selectContext):
         col = ctx.column.accept(self)
@@ -250,7 +259,7 @@ class DBVisitor(SQLVisitor):
         return Col(table_name, col_name)
 
     def visitExpression(self, ctx: SQLParser.ExpressionContext):
-        pass
+        return ctx.accept(self)
 
     def visitSet_clause(self, ctx: SQLParser.Set_clauseContext):
         pass

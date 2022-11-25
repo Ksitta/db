@@ -4,6 +4,7 @@ from typing import List
 from table.table import Table
 from operators.conditions import Condition
 from common.common import *
+from operators.conditions import *
 
 
 class OperatorBase:
@@ -13,6 +14,12 @@ class OperatorBase:
     @abstractmethod
     def process(self) -> RecordList:
         pass
+
+    def get_column_idx(self, col: Col) -> int:
+        for i in range(len(self._columns)):
+            each = self._columns[i]
+            if each.col_name == col.col_name and each.table_name == col.table_name:
+                return i
 
 
 class ProjectNode(OperatorBase):
@@ -53,12 +60,18 @@ class FilterNode(OperatorBase):
         that satisfy all conditions.
     """
 
-    def __init__(self, child: OperatorBase, conditions: List[Condition]) -> None:
+    def __init__(self, child: OperatorBase, condition: Condition) -> None:
         self._child: OperatorBase = child
-        self._conditions: List[Condition] = conditions
+        self._condition: Condition = condition
+        self._columns = child._columns
 
     def process(self):
         inlist: RecordList = self._child.process()
+        outlist: RecordList = RecordList(self._columns)
+        for each in inlist.records:
+            if (self._condition.fit(each)):
+                outlist.append(each)
+        return outlist
 
 
 class TableScanNode(OperatorBase):
@@ -68,11 +81,15 @@ class TableScanNode(OperatorBase):
 
     def __init__(self, table: Table):
         self._table = table
+        tb_name = table.get_name()
+        self._columns = [Col(col_name, tb_name)
+                         for col_name in table.get_column_names()]
 
     def process(self) -> RecordList:
         result: List[Record] = self._table.load_all_records()
         table_name = self._table.get_name()
-        cols = [Col(table_name, each) for each in self._table.get_column_names()]
+        cols = [Col(table_name, each)
+                for each in self._table.get_column_names()]
         return RecordList(cols, result)
 
 
@@ -81,6 +98,7 @@ class JoinNode(OperatorBase):
         self._left = left
         self._right = right
         self._condition = condition
+        self._columns = left._columns + right._columns
 
     def process(self) -> RecordList:
         left_result: RecordList = self._left.process()

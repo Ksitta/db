@@ -20,3 +20,4 @@ class Col:
         self.col_name = col_name
         self.table_name = table_name
         self.aggregator = aggregator
+        
