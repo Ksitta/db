@@ -58,7 +58,7 @@ class Table():
                         s = bytes(each.default_val, encoding='utf-8')[:each.size]
                         column['column_default'][0:each.size] = np.frombuffer(s, dtype=np.uint8)
                 meta_columns.append(column)
-                record_size += len(each.name)
+                record_size += each.size
             
             meta['record_size'] = record_size
             meta['column_number'] = len(meta_columns)
