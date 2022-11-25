@@ -69,7 +69,7 @@ class DBVisitor(SQLVisitor):
         sm_manager.drop_table(str(ctx.Identifier()))
 
     def visitDescribe_table(self, ctx: SQLParser.Describe_tableContext):
-        sm_manager.describe_table(str(ctx.Identifier()))
+        return sm_manager.describe_table(str(ctx.Identifier()))
 
     def visitInsert_into_table(self, ctx: SQLParser.Insert_into_tableContext):
         table_name = str(ctx.Identifier())

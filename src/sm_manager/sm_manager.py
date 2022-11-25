@@ -96,7 +96,7 @@ class SM_Manager():
             raise NoUsingDatabaseError((f'No database is opened'))
         if (rel_name not in self._tables):
             raise TableNotExistsError(rel_name)
-        self._tables[rel_name].describe()
+        return self._tables[rel_name].describe()
 
     @require_using_db
     def drop_table(self, rel_name: str):

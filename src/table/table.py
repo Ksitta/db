@@ -10,7 +10,7 @@ from config import *
 
 class Table():
     def describe(self):
-        result: List[List[str, int]]
+        result: List[List[str, int]] = list()
         for each in self._columns:
             result.append([each.name, each.type, each.size])
         return result
@@ -23,9 +23,10 @@ class Table():
         if columns == None:
             self._file_handle: RM_FileHandle = rm_manager.open_file(name)
             meta: dict = self._file_handle.read_meta()
-            self._columns: List[Column] = list()
+            columns: List[Column] = list()
             for each in meta['columns']:
-                pass  # TODO : read columns from meta
+                columns.append(Column(each['column_name'], each['column_type'], each['column_size'], False))
+            self._columns = columns
         else:
             rm_manager.create_file(name)
             self._file_handle: RM_FileHandle = rm_manager.open_file(name)
