@@ -36,3 +36,18 @@ class RemoveRecordError(Exception):
 class UpdateRecordError(Exception):
     ''' Raised when failed to update a record.
     '''
+    
+
+class OpenScanError(Exception):
+    ''' Raised when failed to open a file scan.
+    '''
+    
+
+class ScanNextError(Exception):
+    ''' Raised when failed to scan next record.
+    '''
+    
+
+class CloseScanError(Exception):
+    ''' Raised when failed to close a file scan.
+    '''

@@ -80,6 +80,7 @@ class Bitmap:
         ''' Serialize the bitmap to np.ndarray[(self.size,), uint8].
         '''
         return self.data.copy()
+    
         
     @staticmethod
     def deserialize(capacity:int, data:np.ndarray) -> None:

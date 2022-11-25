@@ -20,8 +20,8 @@ BYTE_ORDER = '<'
 TYPE_INT = 0        # field type int, size = 4
 TYPE_FLOAT = 1      # field type float, size = 8
 TYPE_STR = 2        # filed type str, size >= 0
-SIZE_INT = 4        # size of int32
-SIZE_FLOAT = 8      # size of float64
+SIZE_INT = 4        # size of int32, unchangable
+SIZE_FLOAT = 8      # size of float64, unchangable
 
 # unit test
 TEST_ROOT = f'./test_root'
