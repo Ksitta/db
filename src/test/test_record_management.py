@@ -6,7 +6,9 @@ import config as cf
 from record_management.rm_rid import RM_Rid
 from record_management.rm_record import RM_Record
 from record_management.rm_file_handle import RM_FileHandle
+from record_management.rm_file_scan import RM_FileScan
 from record_management.rm_record_manager import rm_manager
+from utils.enums import CompOp
 
 
 def test_meta():
@@ -115,10 +117,8 @@ def test_pack_unpack_record():
                 'column_default': np.zeros(10, dtype=np.uint8),
             },
         ],
-        'primary_key_size': 0,
-        'primary_keys': [],
-        'foreign_key_number': 0,
-        'foreign_keys': [],
+        'primary_key_size': 0, 'primary_keys': [],
+        'foreign_key_number': 0, 'foreign_keys': [],
     }
     rm_manager.create_file(file_name)
     handle:RM_FileHandle = rm_manager.open_file(file_name)
@@ -148,6 +148,81 @@ def test_record():
     record_set.add(record3)
     assert len(record_set) == 2
     print(f'test_record passed!')
+    
+
+def test_file_scan():
+    ''' Test insert, remove, update record interfaces and file scan.
+    '''
+    file_name = os.path.join(cf.TEST_ROOT, 'test_file_scan')
+    meta = {
+        'record_size': 22,
+        'column_number': 3,
+        'columns': [ {
+                'column_type': cf.TYPE_INT,
+                'column_size': cf.SIZE_INT,
+                'column_name_length': 7,
+                'column_name': 'col_int',
+                'column_default_en': False,
+                'column_default': np.zeros(cf.SIZE_INT, dtype=np.uint8),
+            }, {
+                'column_type': cf.TYPE_FLOAT,
+                'column_size': cf.SIZE_FLOAT,
+                'column_name_length': 9,
+                'column_name': 'col_float',
+                'column_default_en': False,
+                'column_default': np.zeros(cf.SIZE_FLOAT, dtype=np.uint8),
+            }, {
+                'column_type': cf.TYPE_STR,
+                'column_size': 10,
+                'column_name_length': 7,
+                'column_name': 'col_str',
+                'column_default_en': False,
+                'column_default': np.zeros(10, dtype=np.uint8),
+            },
+        ],
+        'primary_key_size': 0, 'primary_keys': [],
+        'foreign_key_number': 0, 'foreign_keys': [],
+    }
+    rm_manager.create_file(file_name)
+    handle:RM_FileHandle = rm_manager.open_file(file_name)
+    handle.init_meta(meta)
+    N, rids = 100, []
+    # insert records
+    for i in range(N):
+        data = struct.pack(f'<id10s', int(i*2), float(i*10),
+            bytes(str(i*100).ljust(10, '\0'), encoding='utf-8'))
+        rids.append(handle.insert_record(np.frombuffer(data, dtype=np.uint8)))
+    # update records
+    for i in range(N):
+        data = struct.pack(f'<id10s', int(i), float(i*10),
+            bytes(str(i*100).ljust(10, '\0'), encoding='utf-8'))
+        handle.update_record(rids[i], np.frombuffer(data, dtype=np.uint8))
+    # remove records
+    for rid in rids[::-1]:
+        record = handle.get_record(rid)
+        (i, d, s) = handle.unpack_record(record.data)
+        if i % 2 != 0:
+            handle.remove_record(rid)
+    # file scan
+    file_scan = RM_FileScan()
+    file_scan.open_scan(handle)
+    for idx, record in enumerate(file_scan.next()):
+        (i, d, s) = handle.unpack_record(record.data)
+        assert i==idx*2 and d==float(idx*20) and s==str(idx*200)
+    # CompOp.EQ
+    file_scan.open_scan(handle, comp_op=CompOp.EQ, field_value=str(N*50),
+        field_type=cf.TYPE_STR, field_size=10, field_off=12)
+    for record in file_scan.next():
+        (i, d, s) = handle.unpack_record(record.data)
+        assert i==N//2 and d==float(N*5) and s==str(N*50)
+    # CompOp.LT
+    file_scan.open_scan(handle, comp_op=CompOp.LT, field_value=float(N*5),
+        field_type=cf.TYPE_FLOAT, field_size=8, field_off=4)
+    records = list(file_scan.next())
+    assert len(records) == N//4
+    rm_manager.close_file(file_name)
+    rm_manager.remove_file(file_name)
+    print(f'test_file_scan passed!')
 
 
 def test():
@@ -155,3 +230,4 @@ def test():
     test_meta()
     test_pack_unpack_record()
     test_record()
+    test_file_scan()

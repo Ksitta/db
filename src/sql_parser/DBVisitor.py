@@ -245,11 +245,17 @@ class DBVisitor(SQLVisitor):
 
     def visitWhere_operator_select(self, ctx: SQLParser.Where_operator_selectContext):
         col = ctx.column.accept(self)
-        pass
+        op = ctx.operator_.accept(self)
+        raw_scan = self._table_scan
+        select = ctx.select_statement().accept(self)
+        self._table_scan = raw_scan
 
     def visitWhere_null(self, ctx: SQLParser.Where_nullContext):
         col = ctx.column.accept(self)
-        pass
+        # if(ctx.Null() is not None):
+        #     cond = AlgebraCondition(Operator.OP_NE, None)
+        # else:
+        #     cond = AlgebraCondition(Operator.OP_EQ, None)
 
     def visitWhere_in_list(self, ctx: SQLParser.Where_in_listContext):
         col = ctx.column.accept(self)
