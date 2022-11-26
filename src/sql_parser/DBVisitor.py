@@ -79,7 +79,7 @@ class DBVisitor(SQLVisitor):
     def visitDelete_from_table(self, ctx: SQLParser.Delete_from_tableContext):
         table_name = str(ctx.Identifier())
         self._table_scan[table_name] = TableScanNode(sm_manager.get_table(table_name))
-        where_clause = ctx.where_and_clause().accept(self)
+        ctx.where_and_clause().accept(self)
         
         node = self._table_scan[table_name]
         records: RecordList = node.process()
@@ -115,7 +115,7 @@ class DBVisitor(SQLVisitor):
             self._table_scan[each] = TableScanNode(sm_manager.get_table(each))
 
         if(ctx.where_and_clause()):
-            where_clause = ctx.where_and_clause().accept(self)
+            ctx.where_and_clause().accept(self)
         
         for each in idents[1:]:
             if (djset.is_connect(idents[0], each)):
@@ -228,20 +228,22 @@ class DBVisitor(SQLVisitor):
         return None
 
     def visitWhere_and_clause(self, ctx: SQLParser.Where_and_clauseContext):
-        return [each.accept(self) for each in ctx.where_clause()]
+        for each in ctx.where_clause():
+            each.accept(self)
 
     def visitWhere_operator_expression(self, ctx: SQLParser.Where_operator_expressionContext):
-        col: Col = ctx.column.accept(self)
-        op = ctx.operator_.accept(self)
-        exp = ctx.expression.accept(self)
+        col: Col = ctx.column().accept(self)
+        op = ctx.operator_().accept(self)
+        exp = ctx.expression().accept(self)
         if (type(exp) is Col):
             left = self._table_scan[col.table_name]
             right = self._table_scan[exp.table_name]
             cond = JoinCondition(left.get_column_idx(col), right.get_column_idx(exp))
             self._table_scan[col.table_name + '.' + exp.table_name] = JoinNode(left, right, cond)
             return
-        cond = AlgebraCondition(col, op, exp)
-        self._table_scan[col.table_name] = FilterNode(self._table_scan[col.table_name], cond)
+        old_node = self._table_scan[col.table_name]
+        cond = AlgebraCondition(op, old_node.get_column_idx(col), exp)
+        self._table_scan[col.table_name] = FilterNode(old_node, cond)
 
     def visitWhere_operator_select(self, ctx: SQLParser.Where_operator_selectContext):
         col = ctx.column.accept(self)
@@ -274,10 +276,7 @@ class DBVisitor(SQLVisitor):
         if(table_name is not None):
             table_name = str(table_name)
         col_name = str(ctx.Identifier(1))
-        return Col(table_name, col_name)
-
-    def visitExpression(self, ctx: SQLParser.ExpressionContext):
-        return ctx.accept(self)
+        return Col(col_name, table_name)
 
     def visitSet_clause(self, ctx: SQLParser.Set_clauseContext):
         idents = [each.accept(self) for each in ctx.Identifier()]
