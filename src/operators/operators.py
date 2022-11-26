@@ -88,7 +88,7 @@ class TableScanNode(OperatorBase):
     def process(self) -> RecordList:
         result: List[Record] = self._table.load_all_records()
         table_name = self._table.get_name()
-        cols = [Col(table_name, each)
+        cols = [Col(each, table_name)
                 for each in self._table.get_column_names()]
         return RecordList(cols, result)
 

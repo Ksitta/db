@@ -7,6 +7,7 @@ from sql_parser.SQLParser import SQLParser
 from sql_parser.DBVisitor import DBVisitor
 import signal
 from sm_manager.sm_manager import sm_manager
+from printer.printer import Printer
 
 def parser_command(line):
     input_stream = InputStream(line)
@@ -24,8 +25,8 @@ def parser_command(line):
 
     try:
         res = visitor.visit(tree)
-        if(res):
-            print(str(res))
+        printer = Printer(res)
+        printer.display()
     except Exception as e:
         print(repr(e))
         print("==============")
@@ -44,10 +45,12 @@ def sigint_exit(signum, frame):
     print("Bye!")
     exit(0)
     
-
-if __name__ == '__main__':
+def main():
     signal.signal(signal.SIGINT, sigint_exit)
     while True:
         print(">>> ", end='')
         line = input()
         parser_command(line)
+
+if __name__ == '__main__':
+    main()

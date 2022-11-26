@@ -2,7 +2,7 @@ from record_management.rm_record_manager import rm_manager
 from record_management.rm_file_handle import RM_FileHandle
 from record_management.rm_file_scan import RM_FileScan
 from record_management.rm_rid import RM_Rid
-from records.record import Record, Column
+from records.record import Record, Column, RecordList
 import numpy as np
 from typing import List, Union
 from config import *
@@ -18,10 +18,11 @@ class Table():
                 return i
 
     def describe(self):
-        result: List[List[str, int]] = list()
+        result: List[Record] = list()
         for each in self._columns:
-            result.append([each.name, each.type, each.size])
-        return result
+            result.append(Record([each.name, each.type, each.size]))
+        res = RecordList([Col("name"), Col("type"), Col("size")], result)
+        return res
 
     def get_name(self) -> str:
         return self._name
@@ -114,12 +115,10 @@ class Table():
         scaner = RM_FileScan()
         scaner.open_scan(self._file_handle)
         records: list = list()
-        while True:
-            raw_record = scaner.next()
-            if raw_record == None:
-                break
-            rec = self._file_handle.unpack_record(raw_record.data)
-            records.append(Record(rec, raw_record.rid))
+        raw_record = scaner.next()
+        for each in raw_record:
+            rec = self._file_handle.unpack_record(each.data)
+            records.append(Record(rec, each.rid))
         scaner.close_scan()
         return records
 

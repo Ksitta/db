@@ -124,7 +124,7 @@ class SM_Manager():
             self._tables[rel_name].delete_record(each.rid)
 
     @require_using_db
-    def update(self, rel_name: str, records: RecordList, set_clause: List[Tuple(str, Union[int, float, str])]):
+    def update(self, rel_name: str, records: RecordList, set_clause: List):
         if (rel_name not in self._tables):
             raise TableNotExistsError(rel_name)
         up_list: List[Tuple(int, Union[int, float, str, None])] = []

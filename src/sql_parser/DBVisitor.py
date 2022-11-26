@@ -247,7 +247,7 @@ class DBVisitor(SQLVisitor):
         col = ctx.column.accept(self)
         op = ctx.operator_.accept(self)
         raw_scan = self._table_scan
-        select = ctx.select_statement().accept(self)
+        select = ctx.select_table().accept(self)
         self._table_scan = raw_scan
 
     def visitWhere_null(self, ctx: SQLParser.Where_nullContext):
