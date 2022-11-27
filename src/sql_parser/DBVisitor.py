@@ -126,7 +126,8 @@ class DBVisitor(SQLVisitor):
             t2 = djset.find(t2)
             djset.union(t1, t2)
             cond = self._table_join[each]
-            self._table_scan[t1] = JoinNode(self._table_scan[t1], self._table_scan[t2], cond)
+            dst = djset.find(t1)
+            self._table_scan[dst] = JoinNode(self._table_scan[t1], self._table_scan[t2], cond)
 
         for each in idents[1:]:
             if (djset.is_connect(idents[0], each)):

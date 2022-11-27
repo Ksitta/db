@@ -33,11 +33,11 @@ class AlgebraCondition(Condition):
 
 
 class JoinCondition(Condition):
-    def __init__(self, left_col: int, right_col: int):
+    def __init__(self, left_col: Col, right_col: Col):
         self._left_col = left_col
         self._right_col = right_col
 
     def fit(self, left_record: Record, right_record: Record):
-        if(left_record.get_field(self._left_col) == right_record.get_field(self._right_col)):
+        if(left_record.data[self._left_col] == right_record.data[self._right_col]):
             return True
         return False

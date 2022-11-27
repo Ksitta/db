@@ -94,18 +94,20 @@ class TableScanNode(OperatorBase):
 
 
 class JoinNode(OperatorBase):
-    def __init__(self, left: OperatorBase, right: OperatorBase, condition: Condition):
+    def __init__(self, left: OperatorBase, right: OperatorBase, condition: JoinCondition):
         self._left = left
         self._right = right
-        self._condition = condition
+        self._condition: JoinCondition = condition
         self._columns = left._columns + right._columns
 
     def process(self) -> RecordList:
         left_result: RecordList = self._left.process()
         right_result: RecordList = self._right.process()
         result: List[Record] = []
+        self._condition._left_col = self._left.get_column_idx(self._condition._left_col)
+        self._condition._right_col = self._right.get_column_idx(self._condition._right_col)
         for left_record in left_result.records:
             for right_record in right_result.records:
                 if self._condition.fit(left_record, right_record):
-                    result.append(left_record + right_record)
-        return RecordList(result, left_result.columns + right_result.columns)
+                    result.append(Record.concat(left_record, right_record))
+        return RecordList(left_result.columns + right_result.columns, result)
