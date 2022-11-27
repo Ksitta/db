@@ -5,7 +5,6 @@ from table.table import Table
 from typing import Dict, Set, List
 from record_management.rm_record_manager import rm_manager
 from record_management.rm_rid import RM_Rid
-from records.record import Record, RecordList
 from typing import List, Union, Tuple
 from functools import wraps
 import shutil
@@ -82,16 +81,14 @@ class SM_Manager():
         return Result(["Tables"], [[each] for each in list(self._tables.keys())])
 
     @require_using_db
-    def create_table(self, rel_name: str, columns: list, pk: list, fk: dict):
+    def create_table(self, rel_name: str, columns: List[Column], pk: list, fk: dict):
         if (rel_name in self._tables):
             raise TableExistsError(rel_name)
-        names = set(columns)
-        if (len(names) != len(columns)):
+        names = [each.name for each in columns]
+        if (len(set(names)) != len(columns)):
             raise DuplicateColumnError()
-        for each in pk:
-            if (each not in names):
-                raise NoSuchColumnError(each)
-        self._tables[rel_name] = Table(rel_name, columns, pk, fk)
+        pk_idx = [names.index(each) for each in pk]
+        self._tables[rel_name] = Table(rel_name, columns, pk_idx, fk)
 
     @require_using_db
     def describe_table(self, rel_name: str):

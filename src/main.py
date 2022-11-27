@@ -38,7 +38,7 @@ exiting = False
 def sigint_exit(signum, frame):
     global exiting
     if exiting:
-        print("\nYou choose to force exit. Data might be lost.")
+        print("You choose to force exit. Data might be lost.")
         exit(0)
     print("\nSaving databases, press Ctrl+C again to force exit.")
     exiting = True
@@ -48,9 +48,19 @@ def sigint_exit(signum, frame):
     
 def main():
     signal.signal(signal.SIGINT, sigint_exit)
-    while True:
+    res = ""
+    while (True):
         print(">>> ", end='')
-        line = input()
+        line = res
+        while(True):
+            line += input()
+            if(';' in line):
+                after_split = line.split(';', maxsplit=1)
+                line = after_split[0] + ';'
+                res = after_split[1]
+                break
+        if(line.lower() == "exit;"):
+            sigint_exit(0, 0)
         parser_command(line)
 
 if __name__ == '__main__':

@@ -1,5 +1,4 @@
 from abc import abstractmethod
-from records.record import Record, RecordList
 from typing import List
 from table.table import Table
 from operators.conditions import Condition

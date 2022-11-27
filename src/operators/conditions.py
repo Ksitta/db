@@ -1,6 +1,5 @@
 from abc import abstractmethod
 from enum import Enum
-from records.record import Record
 from common.common import *
 from typing import Union
 

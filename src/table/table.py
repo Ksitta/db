@@ -2,7 +2,6 @@ from record_management.rm_record_manager import rm_manager
 from record_management.rm_file_handle import RM_FileHandle
 from record_management.rm_file_scan import RM_FileScan
 from record_management.rm_rid import RM_Rid
-from records.record import Record, Column, RecordList
 import numpy as np
 from typing import List, Union
 from config import *
@@ -72,8 +71,8 @@ class Table():
             meta['column_number'] = len(meta_columns)
             meta['columns'] = meta_columns
 
-            meta['primary_key_size'] = 0
-            meta['primary_keys'] = []
+            meta['primary_key_size'] = len(pk)
+            meta['primary_keys'] = pk
             meta['foreign_key_number'] = 0  # TODO
             meta['foreign_keys'] = []
             self._file_handle.init_meta(meta)

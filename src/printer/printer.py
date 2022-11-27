@@ -1,4 +1,3 @@
-from records.record import Record, RecordList
 from common.common import *
 class Printer():
     def __init__(self, records) -> None:
