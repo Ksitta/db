@@ -9,6 +9,7 @@ from records.record import Record, RecordList
 from typing import List, Union, Tuple
 from functools import wraps
 import shutil
+from common.common import *
 
 def require_using_db(func):
     @wraps(func)
@@ -74,11 +75,11 @@ class SM_Manager():
         os.chdir(self._base_dir)
 
     def show_dbs(self):
-        return self._db_names
+        return Result(["Databases"], [list(self._db_names)])
 
     @require_using_db
     def show_tables(self):
-        return self._tables.keys()
+        return Result(["Tables"], [list(self._tables.keys())])
 
     @require_using_db
     def create_table(self, rel_name: str, columns: list, pk: list, fk: dict):

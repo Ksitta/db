@@ -18,10 +18,10 @@ class Table():
                 return i
 
     def describe(self):
-        result: List[Record] = list()
+        result = list()
         for each in self._columns:
-            result.append(Record([each.name, each.type, each.size]))
-        res = RecordList([Col("name"), Col("type"), Col("size")], result)
+            result.append([each.name, each.type, each.size])
+        res = Result(["name", "type","size"], result)
         return res
 
     def get_name(self) -> str:

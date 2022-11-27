@@ -21,3 +21,9 @@ class Col:
         self.table_name = table_name
         self.aggregator = aggregator
         
+
+class Result():
+    def __init__(self, header: list, results: list) -> None:
+        self._header = header
+        self._results = results
+        
