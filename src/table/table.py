@@ -123,3 +123,6 @@ class Table():
 
     def get_column_names(self) -> List[str]:
         return [i.name for i in self._columns]
+
+    def get_columns(self) -> List[Column]:
+        return self._columns

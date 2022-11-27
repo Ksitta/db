@@ -27,6 +27,12 @@ class DuplicateColumnError(Exception):
     ''' Raised when create a table with duplicate columns.
     '''
 
+
+class DuplicatePrimaryKeyError(Exception):
+    ''' Raised when create a table with duplicate primary keys.
+    '''
+
+
 class NoSuchColumnError(Exception):
     ''' Raised when use a column not exists.
     '''

@@ -9,6 +9,7 @@ from typing import List, Union, Tuple
 from functools import wraps
 import shutil
 from common.common import *
+import pandas as pd
 
 def require_using_db(func):
     @wraps(func)
@@ -88,6 +89,8 @@ class SM_Manager():
         if (len(set(names)) != len(columns)):
             raise DuplicateColumnError()
         pk_idx = [names.index(each) for each in pk]
+        if(len(set(pk_idx)) != len(pk_idx)):
+            raise DuplicatePrimaryKeyError()
         self._tables[rel_name] = Table(rel_name, columns, pk_idx, fk)
 
     @require_using_db
@@ -111,8 +114,9 @@ class SM_Manager():
     def insert(self, rel_name: str, values: List[List[Union[int, float, str]]]):
         if (rel_name not in self._tables):
             raise TableNotExistsError(rel_name)
+        table = self._tables[rel_name]
         for each in values:
-            self._tables[rel_name].insert_record(each)
+            table.insert_record(each)
 
     @require_using_db
     def delete(self, rel_name: str, records: RecordList):
@@ -144,7 +148,31 @@ class SM_Manager():
     def drop_index(self, rel_name: str, idents: list):
         pass
 
+    @require_using_db
     def load(self, rel_name: str, file_name: str):
+        if (rel_name not in self._tables):
+            raise TableNotExistsError(rel_name)
+        dtypes = {}
+        i = 0
+        table = self._tables[rel_name]
+        for each in table.get_columns():
+            if (each.type == TYPE_INT):
+                dtypes[i] = int
+            if (each.type == TYPE_FLOAT):
+                dtypes[i] = float
+            if (each.type == TYPE_STR):
+                dtypes[i] = str
+            i += 1
+        raw_datas = pd.read_csv(file_name, header=None, dtype=dtypes)
+        values = raw_datas.values.tolist()
+        for each in values:
+            table.insert_record(each)
+
+    @require_using_db
+    def dump(self, rel_name: str, file_name: str):
+        if (rel_name not in self._tables):
+            raise TableNotExistsError(rel_name)
+        
         pass
 
     def help(self):

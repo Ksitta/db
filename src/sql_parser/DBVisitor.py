@@ -52,10 +52,14 @@ class DBVisitor(SQLVisitor):
         return super().visitShow_indexes(ctx)
 
     def visitLoad_data(self, ctx: SQLParser.Load_dataContext):
-        return super().visitLoad_data(ctx)
+        file_name: str = str(ctx.String())[1:-1]
+        table_name: str = str(ctx.Identifier())
+        sm_manager.load(table_name, file_name)
     
     def visitDump_data(self, ctx: SQLParser.Dump_dataContext):
-        return super().visitDump_data(ctx)
+        file_name = str(ctx.String())[1:-1]
+        table_name = str(ctx.Identifier())
+        sm_manager.dump(table_name, file_name)
 
     def visitCreate_table(self, ctx: SQLParser.Create_tableContext):
         self._attrs: list = list()
