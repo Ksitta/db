@@ -115,9 +115,19 @@ class DBVisitor(SQLVisitor):
         for each in idents:
             self._table_scan[each] = TableScanNode(sm_manager.get_table(each))
 
+        self._table_join: Dict[str, JoinCondition] = {}
+
         if(ctx.where_and_clause()):
             ctx.where_and_clause().accept(self)
-        
+
+        for each in self._table_join:
+            [t1, t2] = each.split(".")
+            t1 = djset.find(t1)
+            t2 = djset.find(t2)
+            djset.union(t1, t2)
+            cond = self._table_join[each]
+            self._table_scan[t1] = JoinNode(self._table_scan[t1], self._table_scan[t2], cond)
+
         for each in idents[1:]:
             if (djset.is_connect(idents[0], each)):
                 continue
@@ -237,10 +247,8 @@ class DBVisitor(SQLVisitor):
         op = ctx.operator_().accept(self)
         exp = ctx.expression().accept(self)
         if (type(exp) is Col):
-            left = self._table_scan[col.table_name]
-            right = self._table_scan[exp.table_name]
-            cond = JoinCondition(left.get_column_idx(col), right.get_column_idx(exp))
-            self._table_scan[col.table_name + '.' + exp.table_name] = JoinNode(left, right, cond)
+            cond = JoinCondition(col, exp)
+            self._table_join[col.table_name + '.' + exp.table_name] = cond
             return
         old_node = self._table_scan[col.table_name]
         cond = AlgebraCondition(op, old_node.get_column_idx(col), exp)
