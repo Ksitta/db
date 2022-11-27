@@ -88,8 +88,9 @@ class DBVisitor(SQLVisitor):
         
     def visitUpdate_table(self, ctx: SQLParser.Update_tableContext):
         table_name = str(ctx.Identifier())
+        self._table_scan = {}
         self._table_scan[table_name] = TableScanNode(sm_manager.get_table(table_name))
-        where_clause = ctx.where_and_clause().accept(self)
+        ctx.where_and_clause().accept(self)
         set_clause = ctx.set_clause().accept(self)
         node = self._table_scan[table_name]
         records: RecordList = node.process()
@@ -279,7 +280,7 @@ class DBVisitor(SQLVisitor):
         return Col(col_name, table_name)
 
     def visitSet_clause(self, ctx: SQLParser.Set_clauseContext):
-        idents = [each.accept(self) for each in ctx.Identifier()]
+        idents = [str(each) for each in ctx.Identifier()]
         values = [each.accept(self) for each in ctx.value()]
         return list(zip(idents, values))
 

@@ -11,10 +11,10 @@ import struct
 
 
 class Table():
-    def get_column_idx(self, col: Col) -> int:
+    def get_column_idx(self, col_name: str) -> int:
         for i in range(len(self._columns)):
             each = self._columns[i]
-            if each.col_name == col.col_name and each.table_name == col.table_name:
+            if each.name == col_name:
                 return i
 
     def describe(self):
