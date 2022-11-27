@@ -214,7 +214,7 @@ class DBVisitor(SQLVisitor):
 
         
     def visitType_(self, ctx: SQLParser.Type_Context):
-        text = ctx.getText()
+        text = str(ctx.getChild(0))
         if (text == 'INT'):
             return (TYPE_INT, 4)
         if (text == 'FLOAT'):

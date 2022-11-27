@@ -19,7 +19,8 @@ def parser_command(line):
     # parsing
     parser = SQLParser(stream)
     tree = parser.program()
-
+    if(parser.getNumberOfSyntaxErrors() > 0):
+        return
     # use customized visitor to traverse AST
     visitor = DBVisitor()
 

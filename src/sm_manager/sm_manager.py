@@ -79,7 +79,7 @@ class SM_Manager():
 
     @require_using_db
     def show_tables(self):
-        return Result(["Tables"], [list(self._tables.keys())])
+        return Result(["Tables"], [[each] for each in list(self._tables.keys())])
 
     @require_using_db
     def create_table(self, rel_name: str, columns: list, pk: list, fk: dict):
