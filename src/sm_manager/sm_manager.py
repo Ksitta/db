@@ -135,7 +135,7 @@ class SM_Manager():
             up_list.append((idx, each[1]))
         for each in records.records:
             for idx, val in up_list:
-                each[idx] = val
+                each.data[idx] = val
             table.update_record(each.rid, each)
         
 

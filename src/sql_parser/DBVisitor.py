@@ -88,8 +88,9 @@ class DBVisitor(SQLVisitor):
         
     def visitUpdate_table(self, ctx: SQLParser.Update_tableContext):
         table_name = str(ctx.Identifier())
+        self._table_scan = {}
         self._table_scan[table_name] = TableScanNode(sm_manager.get_table(table_name))
-        where_clause = ctx.where_and_clause().accept(self)
+        ctx.where_and_clause().accept(self)
         set_clause = ctx.set_clause().accept(self)
         node = self._table_scan[table_name]
         records: RecordList = node.process()
@@ -114,9 +115,19 @@ class DBVisitor(SQLVisitor):
         for each in idents:
             self._table_scan[each] = TableScanNode(sm_manager.get_table(each))
 
+        self._table_join: Dict[str, JoinCondition] = {}
+
         if(ctx.where_and_clause()):
             ctx.where_and_clause().accept(self)
-        
+
+        for each in self._table_join:
+            [t1, t2] = each.split(".")
+            t1 = djset.find(t1)
+            t2 = djset.find(t2)
+            djset.union(t1, t2)
+            cond = self._table_join[each]
+            self._table_scan[t1] = JoinNode(self._table_scan[t1], self._table_scan[t2], cond)
+
         for each in idents[1:]:
             if (djset.is_connect(idents[0], each)):
                 continue
@@ -236,10 +247,8 @@ class DBVisitor(SQLVisitor):
         op = ctx.operator_().accept(self)
         exp = ctx.expression().accept(self)
         if (type(exp) is Col):
-            left = self._table_scan[col.table_name]
-            right = self._table_scan[exp.table_name]
-            cond = JoinCondition(left.get_column_idx(col), right.get_column_idx(exp))
-            self._table_scan[col.table_name + '.' + exp.table_name] = JoinNode(left, right, cond)
+            cond = JoinCondition(col, exp)
+            self._table_join[col.table_name + '.' + exp.table_name] = cond
             return
         old_node = self._table_scan[col.table_name]
         cond = AlgebraCondition(op, old_node.get_column_idx(col), exp)
@@ -279,7 +288,7 @@ class DBVisitor(SQLVisitor):
         return Col(col_name, table_name)
 
     def visitSet_clause(self, ctx: SQLParser.Set_clauseContext):
-        idents = [each.accept(self) for each in ctx.Identifier()]
+        idents = [str(each) for each in ctx.Identifier()]
         values = [each.accept(self) for each in ctx.value()]
         return list(zip(idents, values))
 
