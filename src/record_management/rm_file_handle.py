@@ -4,7 +4,7 @@ from typing import Union, List, Dict, Tuple, Any
 
 import config as cf
 from utils.bitmap import Bitmap
-from paged_file.pf_file_manager import pf_manager
+from paged_file.pf_manager import pf_manager
 from record_management.rm_rid import RM_Rid
 from record_management.rm_record import RM_Record
 from record_management.rm_page_header import RM_PageHeader

@@ -1,4 +1,4 @@
-from record_management.rm_record_manager import rm_manager
+from record_management.rm_manager import rm_manager
 from record_management.rm_file_handle import RM_FileHandle
 from record_management.rm_file_scan import RM_FileScan
 from record_management.rm_rid import RM_Rid

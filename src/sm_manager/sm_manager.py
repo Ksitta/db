@@ -3,7 +3,7 @@ import os
 from config import *
 from table.table import Table
 from typing import Dict, Set, List
-from record_management.rm_record_manager import rm_manager
+from record_management.rm_manager import rm_manager
 from record_management.rm_rid import RM_Rid
 from typing import List, Union, Tuple
 from functools import wraps

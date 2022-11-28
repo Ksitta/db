@@ -8,7 +8,7 @@ from errors.err_paged_file import *
 from utils.lru_list import LRUList
 
 
-class PF_FileManager:
+class PF_Manager:
     ''' The paged file manager.
     '''
     
@@ -284,7 +284,7 @@ class PF_FileManager:
         self.dirty[buffer_id] = True
     
     
-pf_manager = PF_FileManager()
+pf_manager = PF_Manager()
 
 
 if __name__ == '__main__':

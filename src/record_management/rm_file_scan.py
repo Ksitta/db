@@ -5,7 +5,7 @@ from typing import Union, List, Tuple
 import config as cf
 from utils.enums import CompOp
 from utils.bitmap import Bitmap
-from paged_file.pf_file_manager import pf_manager
+from paged_file.pf_manager import pf_manager
 from record_management.rm_rid import RM_Rid
 from record_management.rm_record import RM_Record
 from record_management.rm_file_handle import RM_FileHandle

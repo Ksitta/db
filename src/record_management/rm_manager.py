@@ -4,12 +4,12 @@ import time
 import numpy as np
 
 import config as cf
-from paged_file.pf_file_manager import pf_manager
+from paged_file.pf_manager import pf_manager
 from record_management.rm_file_handle import RM_FileHandle
 
 
-class RM_RecordManager:
-    ''' The record manager, a higher-level client of PF_FileManager,
+class RM_Manager:
+    ''' The record manager, a higher-level client of PF_Manager,
     in charge of managing the files in record level.
     '''
     
@@ -21,7 +21,7 @@ class RM_RecordManager:
         ''' Create a file with fixed record size.
         args:
             file_name: str, the full file path without ext, like 'dir/table',
-                the same for other interfaces in RM_RecordManager.
+                the same for other interfaces in RM_Manager.
         '''
         pf_manager.create_file(file_name + cf.TABLE_META_SUFFIX)
         pf_manager.create_file(file_name + cf.TABLE_DATA_SUFFIX)
@@ -53,7 +53,7 @@ class RM_RecordManager:
         if handle: handle.is_opened = False
         
         
-rm_manager = RM_RecordManager()
+rm_manager = RM_Manager()
 
 
 if __name__ == '__main__':

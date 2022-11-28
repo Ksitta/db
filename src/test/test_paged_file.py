@@ -3,12 +3,12 @@ from matplotlib.offsetbox import PaddedBox
 import numpy as np
 
 import config as cf
-from paged_file.pf_file_manager import PF_FileManager
+from paged_file.pf_manager import PF_Manager
 
 
 def test_alloc_buffer():
     # BUFFER_CAPACITY = 4, PAGE_SIZE = 16
-    manager = PF_FileManager()
+    manager = PF_Manager()
     name = os.path.join(cf.TEST_ROOT, 'test_alloc_buffer.data')
     manager.create_file(name)
     file_id = manager.open_file(name)
@@ -31,7 +31,7 @@ def test_alloc_buffer():
     
 def test_lru():
     # BUFFER_CAPACITY = 4, PAGE_SIZE = 16
-    manager = PF_FileManager()
+    manager = PF_Manager()
     name = os.path.join(cf.TEST_ROOT, 'test_lru.data')
     manager.create_file(name)
     file_id = manager.open_file(name)
@@ -52,7 +52,7 @@ def test_lru():
 
 def test_write_page():
     # BUFFER_CAPACITY = 4, PAGE_SIZE = 16
-    manager = PF_FileManager()
+    manager = PF_Manager()
     name = os.path.join(cf.TEST_ROOT, 'test_write_page.data')
     manager.create_file(name)
     file_id = manager.open_file(name)
@@ -75,7 +75,7 @@ def test_write_page():
     
 def test_data_structures():
     # BUFFER_CAPACITY = 4, PAGE_SIZE = 16
-    manager = PF_FileManager()
+    manager = PF_Manager()
     name = os.path.join(cf.TEST_ROOT, 'test_data_structures.data')
     manager.create_file(name)
     file_id = manager.open_file(name)
