@@ -34,7 +34,7 @@ class RM_FileScan:
             comp_op: CompOp, the filter condition. If comp_op == CompOp.NO, the following
                 parameters (field_value, field_type, field_size, and field_off) will all be
                 ignored, and all records will be returned by the scanning operation.
-            value: Union[int,float,str,None], the field to be compared to.
+            field_value: Union[int,float,str,None], the field to be compared with.
             field_type: int, in {cf.TYPE_INT, cf.TYPE_FLAOT, cf.TYPE_STR}.
             field_size: int, the size of the field to be compared.
             field_off: int, the field offset within the record.
@@ -50,7 +50,7 @@ class RM_FileScan:
         
     
     def next(self) -> Union[RM_Record, None]:
-        ''' Yield the next scanned record that satisfys the filtering condition.
+        ''' Yield the next scanned record that satisfies the filtering condition.
         note:
             Should use the generator like this:
             ``` python

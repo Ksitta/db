@@ -2,6 +2,7 @@ import os
 import sys
 import time
 import numpy as np
+from typing import Dict
 
 import config as cf
 from paged_file.pf_manager import pf_manager
@@ -14,7 +15,7 @@ class RM_Manager:
     '''
     
     def __init__(self):
-        self.opened_files = {}
+        self.opened_files: Dict[str, RM_FileHandle] = dict()
         
         
     def create_file(self, file_name:str):
@@ -37,6 +38,8 @@ class RM_Manager:
     def open_file(self, file_name:str) -> RM_FileHandle:
         ''' Open a file by file name and return the file handle.
         '''
+        if file_name in self.opened_files:
+            return self.opened_files[file_name]
         meta_file_id = pf_manager.open_file(file_name + cf.TABLE_META_SUFFIX)
         data_file_id = pf_manager.open_file(file_name + cf.TABLE_DATA_SUFFIX)
         file_handle = RM_FileHandle(file_name, meta_file_id, data_file_id)
