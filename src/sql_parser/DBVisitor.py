@@ -157,15 +157,18 @@ class DBVisitor(SQLVisitor):
         sm_manager.drop_index(table_name, idents)
 
     def visitAlter_table_drop_pk(self, ctx: SQLParser.Alter_table_drop_pkContext):
-        pass
+        table_name = str(ctx.Identifier())
+        sm_manager.drop_pk(table_name)
 
     def visitAlter_table_drop_foreign_key(self, ctx: SQLParser.Alter_table_drop_foreign_keyContext):
-        pass
+        table_name = str(ctx.Identifier())
+        idents = ctx.Identifier()
+        sm_manager.drop_fk(table_name, idents)
 
     def visitAlter_table_add_pk(self, ctx: SQLParser.Alter_table_add_pkContext):
         table_name: str = str(ctx.Identifier(0))
         idents: List[str] = ctx.identifiers().accept(self)
-        pass
+        sm_manager.add_pk(table_name, idents)
         
     def visitAlter_table_add_foreign_key(self, ctx: SQLParser.Alter_table_add_foreign_keyContext):
         table_name = str(ctx.Identifier(0))
@@ -173,12 +176,12 @@ class DBVisitor(SQLVisitor):
         target_table = str(ctx.Identifier(2))
         local_idents = ctx.identifiers(0).accept(self)
         target_idents = ctx.identifiers(1).accept(self)
-        pass
+        sm_manager.add_fk(table_name, fk_name, target_table, local_idents, target_idents)
 
     def visitAlter_table_add_unique(self, ctx: SQLParser.Alter_table_add_uniqueContext):
         table_name = str(ctx.Identifier(0))
         idents: List[str] = ctx.identifiers().accept(self)
-        pass
+        raise NotImplementedError()
         
     def visitField_list(self, ctx: SQLParser.Field_listContext):
         for each in ctx.field():

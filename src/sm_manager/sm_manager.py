@@ -10,6 +10,7 @@ from functools import wraps
 import shutil
 from common.common import *
 import pandas as pd
+from operators.operators import TableScanNode
 
 def require_using_db(func):
     @wraps(func)
@@ -142,11 +143,17 @@ class SM_Manager():
 
     @require_using_db
     def create_index(self, rel_name: str, idents: list):
-        pass
+        if (rel_name not in self._tables):
+            raise TableNotExistsError(rel_name)
+        table = self._tables[rel_name]
+        raise NotImplementedError()
 
     @require_using_db
     def drop_index(self, rel_name: str, idents: list):
-        pass
+        if (rel_name not in self._tables):
+            raise TableNotExistsError(rel_name)
+        table = self._tables[rel_name]
+        raise NotImplementedError()
 
     @require_using_db
     def load(self, rel_name: str, file_name: str):
@@ -172,8 +179,17 @@ class SM_Manager():
     def dump(self, rel_name: str, file_name: str):
         if (rel_name not in self._tables):
             raise TableNotExistsError(rel_name)
-        
-        pass
+        node = TableScanNode(self._tables[rel_name])
+        records = node.process()
+        values = [each.data for each in records.records]
+        pd.DataFrame(values).to_csv(file_name, header=False, index=False)
+
+    @require_using_db
+    def add_pk(self, rel_name: str, idents: list):
+        if (rel_name not in self._tables):
+            raise TableNotExistsError(rel_name)
+        table = self._tables[rel_name]
+        raise NotImplementedError()
 
     def help(self):
         pass
