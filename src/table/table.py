@@ -19,7 +19,15 @@ class Table():
     def describe(self):
         result = list()
         for each in self._columns:
-            result.append([each.name, each.type, each.size])
+            if each.type == TYPE_INT:
+                tp = 'INT'
+            elif each.type == TYPE_FLOAT:
+                tp = 'FLOAT'
+            elif each.type == TYPE_STR:
+                tp = 'STRING'
+            else:
+                raise Exception("Unknown type")
+            result.append([each.name, tp, each.size])
         res = Result(["name", "type","size"], result)
         return res
 

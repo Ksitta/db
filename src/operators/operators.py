@@ -17,9 +17,12 @@ class OperatorBase:
     def get_column_idx(self, col: Col) -> int:
         for i in range(len(self._columns)):
             each = self._columns[i]
-            if each.col_name == col.col_name and each.table_name == col.table_name:
-                return i
-
+            if each.col_name == col.col_name:
+                if col.table_name:
+                    if each.table_name == col.table_name:
+                        return i
+                else:
+                    return i
 
 class ProjectNode(OperatorBase):
     """ ProjectNode is a node that projects the input records.
@@ -66,11 +69,11 @@ class FilterNode(OperatorBase):
 
     def process(self):
         inlist: RecordList = self._child.process()
-        outlist: RecordList = RecordList(self._columns)
+        records = []
         for each in inlist.records:
             if (self._condition.fit(each)):
-                outlist.append(each)
-        return outlist
+                records.append(each)
+        return RecordList(self._columns, records)
 
 
 class TableScanNode(OperatorBase):

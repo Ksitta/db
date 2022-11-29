@@ -62,9 +62,9 @@ class Record():
 
 
 class RecordList():
-    def __init__(self, columns: List[Col] = list(), records: List[Record] = list()) -> None:
-        self.records: List[Record] = records
+    def __init__(self, columns: List[Col], records: List[Record]) -> None:
         self.columns: List[Col] = columns
+        self.records: List[Record] = records
 
     def append(self, record: Record):
         self.records.append(record)
@@ -75,5 +75,9 @@ class RecordList():
     def get_column_idx(self, col: Col) -> int:
         for i in range(len(self.columns)):
             each = self.columns[i]
-            if each.col_name == col.col_name and each.table_name == col.table_name:
-                return i
+            if each.col_name == col.col_name:
+                if col.table_name:
+                    if each.table_name == col.table_name:
+                        return i
+                else:
+                    return i

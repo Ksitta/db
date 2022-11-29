@@ -82,7 +82,9 @@ class DBVisitor(SQLVisitor):
 
     def visitDelete_from_table(self, ctx: SQLParser.Delete_from_tableContext):
         table_name = str(ctx.Identifier())
+        self._table_scan = {}
         self._table_scan[table_name] = TableScanNode(sm_manager.get_table(table_name))
+        self._table_names = [table_name]
         ctx.where_and_clause().accept(self)
         
         node = self._table_scan[table_name]
@@ -92,6 +94,7 @@ class DBVisitor(SQLVisitor):
         
     def visitUpdate_table(self, ctx: SQLParser.Update_tableContext):
         table_name = str(ctx.Identifier())
+        self._table_names = [table_name]
         self._table_scan = {}
         self._table_scan[table_name] = TableScanNode(sm_manager.get_table(table_name))
         ctx.where_and_clause().accept(self)
@@ -103,7 +106,7 @@ class DBVisitor(SQLVisitor):
     def visitSelect_table(self, ctx: SQLParser.Select_tableContext):
         selectors: List[Col] = ctx.selectors().accept(self)
         idents = ctx.identifiers().accept(self)
-
+        self._table_names = idents
         idents_set = set(idents)
         if len(idents_set) != len(idents):
             raise Exception("Duplicate table name")
@@ -258,6 +261,8 @@ class DBVisitor(SQLVisitor):
             cond = JoinCondition(col, exp)
             self._table_join[col.table_name + '.' + exp.table_name] = cond
             return
+        if (col.table_name is None):
+            col.table_name = sm_manager.get_table_name(col.col_name, self._table_names)
         old_node = self._table_scan[col.table_name]
         cond = AlgebraCondition(op, old_node.get_column_idx(col), exp)
         self._table_scan[col.table_name] = FilterNode(old_node, cond)
@@ -266,8 +271,14 @@ class DBVisitor(SQLVisitor):
         col = ctx.column.accept(self)
         op = ctx.operator_.accept(self)
         raw_scan = self._table_scan
+        raw_tables = self._table_names
+        raw_table_join = self._table_join
+        
         select = ctx.select_table().accept(self)
+
         self._table_scan = raw_scan
+        self._table_names = raw_tables
+        self._table_join = raw_table_join
 
     def visitWhere_null(self, ctx: SQLParser.Where_nullContext):
         col = ctx.column.accept(self)
@@ -289,10 +300,13 @@ class DBVisitor(SQLVisitor):
         pass
 
     def visitColumn(self, ctx: SQLParser.ColumnContext) -> Col:
-        table_name = ctx.Identifier(0)
-        if(table_name is not None):
-            table_name = str(table_name)
-        col_name = str(ctx.Identifier(1))
+        table_name = str(ctx.Identifier(0))
+        col_name = ctx.Identifier(1)
+        if col_name is None:
+            col_name = table_name
+            table_name = None
+        else:
+            col_name = str(col_name)
         return Col(col_name, table_name)
 
     def visitSet_clause(self, ctx: SQLParser.Set_clauseContext):
