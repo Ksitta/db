@@ -205,6 +205,30 @@ class SM_Manager():
         if (rel_name not in self._tables):
             raise TableNotExistsError(rel_name)
         table = self._tables[rel_name]
+        pk_idx = [table.get_column_idx(each) for each in idents]
+        if(len(set(pk_idx)) != len(pk_idx)):
+            raise DuplicatePrimaryKeyError()
+        table.add_pk(pk_idx)
+
+    @require_using_db
+    def drop_pk(self, rel_name: str):
+        if (rel_name not in self._tables):
+            raise TableNotExistsError(rel_name)
+        table = self._tables[rel_name]
+        raise NotImplementedError()
+    
+    @require_using_db
+    def add_fk(self, rel_name: str, fk: Dict):
+        if (rel_name not in self._tables):
+            raise TableNotExistsError(rel_name)
+        table = self._tables[rel_name]
+        raise NotImplementedError()
+
+    @require_using_db
+    def drop_fk(self, rel_name: str, fk_name: str):
+        if (rel_name not in self._tables):
+            raise TableNotExistsError(rel_name)
+        table = self._tables[rel_name]
         raise NotImplementedError()
 
     def help(self):
