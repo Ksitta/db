@@ -12,6 +12,7 @@ from common.common import *
 import pandas as pd
 from operators.operators import TableScanNode
 
+
 def require_using_db(func):
     @wraps(func)
     def wrapfunc(*args, **kwargs):
@@ -19,6 +20,7 @@ def require_using_db(func):
             raise NoUsingDatabaseError("No database is using")
         return func(*args, **kwargs)
     return wrapfunc
+
 
 class SM_Manager():
     def __init__(self):
@@ -76,14 +78,14 @@ class SM_Manager():
         os.chdir(self._base_dir)
 
     def show_dbs(self):
-        return Result(["Databases"], [list(self._db_names)])
+        return Result(["Databases"], [[each] for each in list(self._db_names)])
 
     @require_using_db
     def show_tables(self):
         return Result(["Tables"], [[each] for each in list(self._tables.keys())])
 
     @require_using_db
-    def create_table(self, rel_name: str, columns: List[Column], pk: list, fk: dict):
+    def create_table(self, rel_name: str, columns: List[Column], pk: List[str], fk: List[Dict]):
         if (rel_name in self._tables):
             raise TableExistsError(rel_name)
         names = [each.name for each in columns]
@@ -92,7 +94,22 @@ class SM_Manager():
         pk_idx = [names.index(each) for each in pk]
         if(len(set(pk_idx)) != len(pk_idx)):
             raise DuplicatePrimaryKeyError()
-        self._tables[rel_name] = Table(rel_name, columns, pk_idx, fk)
+        for fk_dict in fk:
+            local_idx = [names.index(each) for each in fk_dict["local_idents"]]
+            target_idx = [names.index(each)
+                          for each in fk_dict["target_idents"]]
+            if(len(set(local_idx)) != len(local_idx)):
+                raise DuplicateForeignKeyError()
+            if(len(set(target_idx)) != len(target_idx)):
+                raise DuplicateForeignKeyError()
+            target_columns = self._tables[fk_dict["target_table_name"]].get_columns()
+            for i in range(len(local_idx)):
+                if (columns[local_idx[i]].type != target_columns[target_idx[i]].type or columns[local_idx[i]].size != target_columns[target_idx[i]].size):
+                    raise ForeignKeyTypeError()
+            fk_dict["foreign_key_pairs"] = list(zip(local_idx, target_idx))
+            fk_dict.pop("local_idents")
+            fk_dict.pop("target_idents")
+        self._tables[rel_name] = Table(rel_name, columns, pk_idx, pk)
 
     @require_using_db
     def describe_table(self, rel_name: str):
@@ -139,7 +156,6 @@ class SM_Manager():
             for idx, val in up_list:
                 each.data[idx] = val
             table.update_record(each.rid, each)
-        
 
     @require_using_db
     def create_index(self, rel_name: str, idents: list):
@@ -219,6 +235,9 @@ class SM_Manager():
             raise NoSuchColumnError(col_name)
 
         return table_name
+
+    def get_using_db(self) -> str:
+        return self._using_db
 
 
 sm_manager = SM_Manager()

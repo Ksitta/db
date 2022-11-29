@@ -36,24 +36,15 @@ class ProjectNode(OperatorBase):
 
     def process(self) -> RecordList:
         inlist = self._child.process()
-        i = 0
-        j = 0
         proj: List[int] = list()
-        while i != len(self._columns):
-            while j != len(inlist.columns):
-                if self._columns[i].col_name == inlist.columns[j].col_name and self._columns[i].table_name == inlist.columns[j].table_name:
-                    proj.append(j)
-                    break
-                j += 1
-            i += 1
-        outlist: RecordList = RecordList()
+        proj = [inlist.get_column_idx(col) for col in self._columns]
+        records = []
         for each in inlist.records:
-            one_rec = Record()
+            one_rec = Record([])
             for i in proj:
-                one_rec.append(each[i])
-            outlist.append(one_rec)
-        outlist.set_columns(self._columns)
-        return outlist
+                one_rec.append(each.data[i])
+            records.append(one_rec)
+        return RecordList(self._columns, records)
 
 
 class FilterNode(OperatorBase):

@@ -33,6 +33,16 @@ class DuplicatePrimaryKeyError(Exception):
     '''
 
 
+class DuplicateForeignKeyError(Exception):
+    ''' Raised when create a table with duplicate foreign keys.
+    '''
+
+
+class ForeignKeyTypeError(Exception):
+    ''' Raised when create a table with foreign keys with different types.
+    '''
+
+
 class NoSuchColumnError(Exception):
     ''' Raised when use a column not exists.
     '''

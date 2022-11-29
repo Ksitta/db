@@ -50,6 +50,9 @@ def main():
     signal.signal(signal.SIGINT, sigint_exit)
     res = ""
     while (True):
+        using_db = sm_manager.get_using_db()
+        if(using_db != ""):
+            print("({}) ".format(using_db), end="")
         print(">>> ", end='')
         line = res
         while(True):

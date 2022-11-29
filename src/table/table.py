@@ -3,7 +3,7 @@ from record_management.rm_file_handle import RM_FileHandle
 from record_management.rm_file_scan import RM_FileScan
 from record_management.rm_rid import RM_Rid
 import numpy as np
-from typing import List, Union
+from typing import List, Union, Dict
 from config import *
 from common.common import *
 import struct
@@ -34,7 +34,7 @@ class Table():
     def get_name(self) -> str:
         return self._name
 
-    def __init__(self, name: str, columns: list = None, pk: list = None, fk: dict = None) -> None:
+    def __init__(self, name: str, columns: list = None, pk: List[int] = None, fk: List[Dict] = None) -> None:
         self._name: str = name
         if columns == None:
             self._file_handle: RM_FileHandle = rm_manager.open_file(name)
@@ -42,17 +42,25 @@ class Table():
             columns: List[Column] = list()
             for each in meta['columns']:
                 columns.append(Column(each['column_name'], each['column_type'], each['column_size'], False))
+            
+            # metas
             self._columns = columns
+            self._pk: List[int]  = meta['primary_keys']
+            self._fk: List[Dict] = meta['foreign_keys']
+
         else:
             rm_manager.create_file(name)
+
+            # metas
             self._file_handle: RM_FileHandle = rm_manager.open_file(name)
             self._columns: List[Column] = columns
+            self._pk: List[int] = pk
+            self._fk: List[Dict] = fk
 
             meta: dict = dict()
             meta['column_number'] = len(columns)
 
             record_size: int = 0
-
             meta_columns: list = list()
 
             for i in columns:
@@ -81,8 +89,8 @@ class Table():
 
             meta['primary_key_size'] = len(pk)
             meta['primary_keys'] = pk
-            meta['foreign_key_number'] = 0  # TODO
-            meta['foreign_keys'] = []
+            meta['foreign_key_number'] = len(fk)
+            meta['foreign_keys'] = fk
             self._file_handle.init_meta(meta)
 
     def __del__(self) -> None:

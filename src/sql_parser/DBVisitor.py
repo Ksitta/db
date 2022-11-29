@@ -64,7 +64,7 @@ class DBVisitor(SQLVisitor):
     def visitCreate_table(self, ctx: SQLParser.Create_tableContext):
         self._attrs: list = list()
         self._pk: list = list()
-        self._fk: dict = dict()
+        self._fk: list = list()
         ctx.field_list().accept(self)
         sm_manager.create_table(
             str(ctx.Identifier()), self._attrs, self._pk, self._fk)
@@ -213,14 +213,27 @@ class DBVisitor(SQLVisitor):
         self._pk: List[str] = ctx.identifiers().accept(self)
 
     def visitForeign_key_field(self, ctx: SQLParser.Foreign_key_fieldContext):
-        self._fk: dict = {}
-        self._fk["constraint_name"] = str(ctx.Identifier(0))
-        self._fk["target_table"] = str(ctx.Identifier(1))
-        self._fk["local_idents"] = ctx.identifiers(0).accept(self)
-        self._fk["target_idents"] = ctx.identifiers(1).accept(self)
+        ident = ctx.Identifier(0)
+        if (ident is None):
+            ident = "_fk_" + str(len(self._fk))
+        fk = {}
+        fk["foreign_key_name"] = ident
+        fk["foreign_key_name_length"] = len(ident)
+
+        target_table = str(ctx.Identifier(1))
+        fk["target_table_name"] = target_table
+        fk["target_table_name_length"] = len(target_table)
+
+        local_idents = ctx.identifiers(0).accept(self)
+        target_idents = ctx.identifiers(1).accept(self)
         if (len(self._fk["local_idents"]) != len(self._fk["target_idents"])):
             raise Exception(
                 "Foreign key error: local idents and target idents are not equal.")
+
+        fk["foreign_key_size"] = len(local_idents)
+        fk["local_idents"] = local_idents
+        fk["target_idents"] = target_idents
+        self._fk.append(fk)
 
         
     def visitType_(self, ctx: SQLParser.Type_Context):

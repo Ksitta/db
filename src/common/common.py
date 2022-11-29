@@ -44,7 +44,7 @@ class Column():
 
 class Record():
 
-    def __init__(self, columns: List[Union[int, float, str]] = list(), rid: RM_Rid = None) -> None:
+    def __init__(self, columns: List[Union[int, float, str]], rid: RM_Rid = None) -> None:
         self.data: List[Union[int, float, str]] = columns
         self.rid: RM_Rid = rid
 
