@@ -71,10 +71,10 @@ class RM_FileScan:
         record_per_page = meta['record_per_page']
         header_size = RM_PageHeader.size()
         bitmap_size = meta['bitmap_size']
-        idx, page_no = 0, meta['next_free_page']
+        idx, page_no = 0, 0
         while idx < record_number:
-            if page_no == cf.INVALID:
-                raise ScanNextError(f'Next page is invalid.')
+            # if page_no == cf.INVALID:
+            #     raise ScanNextError(f'Next page is invalid.')
             page_data = pf_manager.read_page(data_file_id, page_no)
             page_header:RM_PageHeader = RM_PageHeader.deserialize(page_data[:header_size])
             bitmap:Bitmap = Bitmap.deserialize(record_per_page,
@@ -104,7 +104,8 @@ class RM_FileScan:
                     elif comp_op == CompOp.NE: valid = (field != field_value)
                     else: raise ScanNextError(f'Wrong comp_op: {comp_op}.')
                     if valid: yield record
-            page_no = page_header.next_free
+                if idx >= record_number: break
+            page_no += 1
         return None
         
     

@@ -154,8 +154,9 @@ def test_file_scan():
     ''' Test insert, remove, update record interfaces and file scan.
     '''
     file_name = os.path.join(cf.TEST_ROOT, 'test_file_scan')
+    str_size = 10
     meta = {
-        'record_size': 22,
+        'record_size': 12 + str_size,
         'column_number': 3,
         'columns': [ {
                 'column_type': cf.TYPE_INT,
@@ -173,11 +174,11 @@ def test_file_scan():
                 'column_default': np.zeros(cf.SIZE_FLOAT, dtype=np.uint8),
             }, {
                 'column_type': cf.TYPE_STR,
-                'column_size': 10,
+                'column_size': str_size,
                 'column_name_length': 7,
                 'column_name': 'col_str',
                 'column_default_en': False,
-                'column_default': np.zeros(10, dtype=np.uint8),
+                'column_default': np.zeros(str_size, dtype=np.uint8),
             },
         ],
         'primary_key_size': 0, 'primary_keys': [],
@@ -189,16 +190,16 @@ def test_file_scan():
     N, rids = 100, []
     # insert records
     for i in range(N):
-        data = struct.pack(f'<id10s', int(i*2), float(i*10),
-            bytes(str(i*100).ljust(10, '\0'), encoding='utf-8'))
+        data = struct.pack(f'<id{str_size}s', int(i*2), float(i*10),
+            bytes(str(i*100).ljust(str_size, '\0'), encoding='utf-8'))
         rids.append(handle.insert_record(np.frombuffer(data, dtype=np.uint8)))
     # update records
     for i in range(N):
-        data = struct.pack(f'<id10s', int(i), float(i*10),
-            bytes(str(i*100).ljust(10, '\0'), encoding='utf-8'))
+        data = struct.pack(f'<id{str_size}s', int(i), float(i*10),
+            bytes(str(i*100).ljust(str_size, '\0'), encoding='utf-8'))
         handle.update_record(rids[i], np.frombuffer(data, dtype=np.uint8))
     # remove records
-    for rid in rids[::-1]:
+    for rid in rids:
         record = handle.get_record(rid)
         (i, d, s) = handle.unpack_record(record.data)
         if i % 2 != 0:
@@ -211,7 +212,7 @@ def test_file_scan():
         assert i==idx*2 and d==float(idx*20) and s==str(idx*200)
     # CompOp.EQ
     file_scan.open_scan(handle, comp_op=CompOp.EQ, field_value=str(N*50),
-        field_type=cf.TYPE_STR, field_size=10, field_off=12)
+        field_type=cf.TYPE_STR, field_size=str_size, field_off=12)
     for record in file_scan.next():
         (i, d, s) = handle.unpack_record(record.data)
         assert i==N//2 and d==float(N*5) and s==str(N*50)
@@ -223,6 +224,67 @@ def test_file_scan():
     rm_manager.close_file(file_name)
     rm_manager.remove_file(file_name)
     print(f'test_file_scan passed!')
+    
+    
+def test_file_scan_2():
+    ''' Test dbtrain-lab-test lab1 00_setup.
+    '''
+    file_name = os.path.join(cf.TEST_ROOT, 'test_file_scan_2')
+    str_size = 10
+    meta = {
+        'record_size': 16 + str_size,
+        'column_number': 4,
+        'columns': [ {
+                'column_type': cf.TYPE_INT,
+                'column_size': cf.SIZE_INT,
+                'column_name_length': 2,
+                'column_name': 'id',
+                'column_default_en': False,
+                'column_default': np.zeros(cf.SIZE_INT, dtype=np.uint8),
+            }, {
+                'column_type': cf.TYPE_INT,
+                'column_size': cf.SIZE_INT,
+                'column_name_length': 2,
+                'column_name': 'age',
+                'column_default_en': False,
+                'column_default': np.zeros(cf.SIZE_INT, dtype=np.uint8),
+            }, {
+                'column_type': cf.TYPE_STR,
+                'column_size': str_size,
+                'column_name_length': 4,
+                'column_name': 'name',
+                'column_default_en': False,
+                'column_default': np.zeros(str_size, dtype=np.uint8),
+            }, {
+                'column_type': cf.TYPE_FLOAT,
+                'column_size': cf.SIZE_FLOAT,
+                'column_name_length': 5,
+                'column_name': 'score',
+                'column_default_en': False,
+                'column_default': np.zeros(cf.SIZE_FLOAT, dtype=np.uint8),
+            },
+        ],
+        'primary_key_size': 0, 'primary_keys': [],
+        'foreign_key_number': 0, 'foreign_keys': [],
+    }
+    rm_manager.create_file(file_name)
+    handle:RM_FileHandle = rm_manager.open_file(file_name)
+    handle.init_meta(meta)
+    N = 7
+    # insert records
+    for i in range(N):
+        data = struct.pack(f'<ii{str_size}sd', i, i+20,
+            bytes(chr(ord('a')+i).ljust(str_size, '\0'), encoding='utf-8'), i/10)
+        handle.insert_record(np.frombuffer(data, dtype=np.uint8))
+    # file scan: select *
+    file_scan = RM_FileScan()
+    file_scan.open_scan(handle)
+    for idx, record in enumerate(file_scan.next()):
+        (i, j, s, d) = handle.unpack_record(record.data)
+        assert i==idx and j==idx+20 and s==chr(ord('a')+idx) and d==idx/10
+    rm_manager.close_file(file_name)
+    rm_manager.remove_file(file_name)
+    print(f'test_file_scan_2 passed!')
 
 
 def test():
@@ -231,3 +293,4 @@ def test():
     test_pack_unpack_record()
     test_record()
     test_file_scan()
+    test_file_scan_2()
