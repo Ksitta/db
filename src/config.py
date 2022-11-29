@@ -14,6 +14,8 @@ except AttributeError as exception:
 DATABASE_PATH = "./test_databases"
 TABLE_META_SUFFIX = ".meta"
 TABLE_DATA_SUFFIX = ".data"
+INDEX_META_SUFFIX = '.ixmeta'
+INDEX_DATA_SUFFIX = '.ixdata'
 
 # record management
 BYTE_ORDER = '<'

@@ -4,7 +4,7 @@ from typing import Union, List, Dict, Tuple, Any
 
 import config as cf
 from utils.bitmap import Bitmap
-from paged_file.pf_file_manager import pf_manager
+from paged_file.pf_manager import pf_manager
 from record_management.rm_rid import RM_Rid
 from record_management.rm_record import RM_Record
 from record_management.rm_page_header import RM_PageHeader
@@ -187,7 +187,7 @@ class RM_FileHandle:
         max_record_size = cf.PAGE_SIZE - RM_PageHeader.size() - 1
         if record_size > max_record_size:
             raise InitMetaError(f'Record size {record_size} is too large, must <= {max_record_size}.')
-        record_per_page = int((cf.PAGE_SIZE-RM_PageHeader.size()-1) / (record_size+1/8))
+        record_per_page = (8*(cf.PAGE_SIZE-RM_PageHeader.size())-7) // (8*record_size+1)
         total_size = 40     # 10 fixed ints
         for col in meta['columns'][:meta['column_number']]:
             total_size += (13 + col['column_name_length'] + col['column_size'])
@@ -370,7 +370,7 @@ class RM_FileHandle:
             page_no = pf_manager.append_page(self.data_file_id, page_data)
             meta['page_number'] += 1
             meta['record_number'] += 1
-            meta['next_free_page'] = page_no
+            meta['next_free_page'] = page_no if record_per_page > 1 else cf.INVALID
             self.meta = meta
             self.meta_modified = True
             return RM_Rid(page_no=page_no, slot_no=0)

@@ -5,7 +5,7 @@ from typing import Union, List, Tuple
 import config as cf
 from utils.enums import CompOp
 from utils.bitmap import Bitmap
-from paged_file.pf_file_manager import pf_manager
+from paged_file.pf_manager import pf_manager
 from record_management.rm_rid import RM_Rid
 from record_management.rm_record import RM_Record
 from record_management.rm_file_handle import RM_FileHandle
@@ -34,7 +34,7 @@ class RM_FileScan:
             comp_op: CompOp, the filter condition. If comp_op == CompOp.NO, the following
                 parameters (field_value, field_type, field_size, and field_off) will all be
                 ignored, and all records will be returned by the scanning operation.
-            value: Union[int,float,str,None], the field to be compared to.
+            field_value: Union[int,float,str,None], the field to be compared with.
             field_type: int, in {cf.TYPE_INT, cf.TYPE_FLAOT, cf.TYPE_STR}.
             field_size: int, the size of the field to be compared.
             field_off: int, the field offset within the record.
@@ -50,7 +50,7 @@ class RM_FileScan:
         
     
     def next(self) -> Union[RM_Record, None]:
-        ''' Yield the next scanned record that satisfys the filtering condition.
+        ''' Yield the next scanned record that satisfies the filtering condition.
         note:
             Should use the generator like this:
             ``` python
@@ -71,10 +71,10 @@ class RM_FileScan:
         record_per_page = meta['record_per_page']
         header_size = RM_PageHeader.size()
         bitmap_size = meta['bitmap_size']
-        idx, page_no = 0, meta['next_free_page']
+        idx, page_no = 0, 0
         while idx < record_number:
-            if page_no == cf.INVALID:
-                raise ScanNextError(f'Next page is invalid.')
+            # if page_no == cf.INVALID:
+            #     raise ScanNextError(f'Next page is invalid.')
             page_data = pf_manager.read_page(data_file_id, page_no)
             page_header:RM_PageHeader = RM_PageHeader.deserialize(page_data[:header_size])
             bitmap:Bitmap = Bitmap.deserialize(record_per_page,
@@ -104,7 +104,8 @@ class RM_FileScan:
                     elif comp_op == CompOp.NE: valid = (field != field_value)
                     else: raise ScanNextError(f'Wrong comp_op: {comp_op}.')
                     if valid: yield record
-            page_no = page_header.next_free
+                if idx >= record_number: break
+            page_no += 1
         return None
         
     
