@@ -1,3 +1,9 @@
+import struct
+import numpy as np
+
+import config as cf
+
+
 class RM_Rid:
     ''' The record identifier, including page_no and slot_no.
     '''
@@ -23,6 +29,26 @@ class RM_Rid:
 
     def __ne__(self, other) -> bool:
         return not self.__eq__(other)
+    
+    
+    @staticmethod
+    def size() -> int:
+        return 8
+    
+    
+    @staticmethod
+    def deserialize(data:np.ndarray):
+        ''' Deserialize np.ndarray[>=RM_Rid.size(), uint8] to rid.
+        '''
+        buffer = data[:RM_Rid.size()].tobytes()
+        return RM_Rid(*struct.unpack(f'{cf.BYTE_ORDER}ii', buffer))
+    
+    
+    def serialize(self) -> np.ndarray:
+        ''' Serialize rid to np.ndarray[RM_Rid.size(), uint8].
+        '''
+        buffer = struct.pack(f'{cf.BYTE_ORDER}ii', self.page_no, self.slot_no)
+        return np.frombuffer(buffer, dtype=np.uint8)
     
     
 if __name__ == '__main__':
