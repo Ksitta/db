@@ -49,7 +49,7 @@ class DBVisitor(SQLVisitor):
         return tables
         
     def visitShow_indexes(self, ctx: SQLParser.Show_indexesContext):
-        return super().visitShow_indexes(ctx)
+        return sm_manager.show_indexes()
 
     def visitLoad_data(self, ctx: SQLParser.Load_dataContext):
         file_name: str = str(ctx.String())[1:-1]
@@ -363,7 +363,7 @@ class DBVisitor(SQLVisitor):
             return Aggregator.COUNT
         if (ctx.Sum() is not None):
             return Aggregator.SUM
-        if (ctx.Avg() is not None):
+        if (ctx.Average() is not None):
             return Aggregator.AVG
         if (ctx.Min() is not None):
             return Aggregator.MIN

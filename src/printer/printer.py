@@ -16,10 +16,14 @@ class Printer():
                     print(each, end="\t")
                 print()
             return
-        for each in self._records.columns:
-            print(each.col_name, end='\t')
-        for each in self._records.records:
+        if (type(self._records) is RecordList):
+            for each in self._records.columns:
+                if each.aggregator:
+                    print(each.aggregator.name + "(" + each.col_name + ")", end="\t")
+                else:
+                    print(each.col_name, end='\t')
+            for each in self._records.records:
+                print()
+                for each in each.data:
+                    print(each, end='\t')
             print()
-            for each in each.data:
-                print(each, end='\t')
-        print()

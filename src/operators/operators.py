@@ -8,7 +8,7 @@ from operators.conditions import *
 
 class OperatorBase:
     """ Base class for all operators.
-        This class defines the
+        This class defines the operator interface.
     """
     @abstractmethod
     def process(self) -> RecordList:
@@ -24,15 +24,54 @@ class OperatorBase:
                 else:
                     return i
 
+
 class ProjectNode(OperatorBase):
     """ ProjectNode is a node that projects the input records.
         It takes a list of column names and returns a list of records
         with only the specified columns.
     """
+    @staticmethod
+    def _count(records: List[Record], col_idx: int) -> int:
+        return len(records)
+
+    @staticmethod
+    def _sum(records: List[Record], col_idx: int) -> Union[int, float]:
+        return sum([each.data[col_idx] for each in records])
+
+    @staticmethod
+    def _avg(records: List[Record], col_idx: int) -> Union[int, float]:
+        return ProjectNode._sum(records, col_idx) / ProjectNode._count(records, col_idx)
+
+    @staticmethod
+    def _max(records: List[Record], col_idx: int) -> Union[int, float]:
+        return max([each.data[col_idx] for each in records])
+
+    @staticmethod
+    def _min(records: List[Record], col_idx: int) -> Union[int, float]:
+        return min([each.data[col_idx] for each in records])
 
     def __init__(self, child: OperatorBase, columns: List[Col]) -> None:
         self._child: OperatorBase = child
         self._columns: List[Col] = columns
+        self._aggregators: List[function] = list()
+        for each in self._columns:
+            if each.aggregator:
+                if each.aggregator == Aggregator.COUNT:
+                    agg_func = self._count
+                elif each.aggregator == Aggregator.SUM:
+                    agg_func = self._sum
+                elif each.aggregator == Aggregator.AVG:
+                    agg_func = self._avg
+                elif each.aggregator == Aggregator.MAX:
+                    agg_func = self._max
+                elif each.aggregator == Aggregator.MIN:
+                    agg_func = self._min
+                else:
+                    raise Exception("Invalid aggregator")
+                self._aggregators.append(agg_func)
+
+        if (len(self._aggregators) != 0 and len(self._aggregators) != len(self._columns)):
+            raise Exception("Columns should be either all aggregated or not aggregated")
 
     def process(self) -> RecordList:
         inlist = self._child.process()
@@ -44,6 +83,8 @@ class ProjectNode(OperatorBase):
             for i in proj:
                 one_rec.append(each.data[i])
             records.append(one_rec)
+        if (len(self._aggregators) != 0):
+            records = [Record([agg(records, i) for i, agg in enumerate(self._aggregators)])]
         return RecordList(self._columns, records)
 
 
@@ -87,6 +128,11 @@ class TableScanNode(OperatorBase):
 
 
 class JoinNode(OperatorBase):
+    """ JoinNode is a node that joins two tables.
+        It takes two tables and a condition and returns a list of records
+        that satisfy the condition.
+    """
+
     def __init__(self, left: OperatorBase, right: OperatorBase, condition: JoinCondition):
         self._left = left
         self._right = right
@@ -97,8 +143,10 @@ class JoinNode(OperatorBase):
         left_result: RecordList = self._left.process()
         right_result: RecordList = self._right.process()
         result: List[Record] = []
-        self._condition._left_col = self._left.get_column_idx(self._condition._left_col)
-        self._condition._right_col = self._right.get_column_idx(self._condition._right_col)
+        self._condition._left_col = self._left.get_column_idx(
+            self._condition._left_col)
+        self._condition._right_col = self._right.get_column_idx(
+            self._condition._right_col)
         for left_record in left_result.records:
             for right_record in right_result.records:
                 if self._condition.fit(left_record, right_record):

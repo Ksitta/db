@@ -172,18 +172,20 @@ class SM_Manager():
             table.update_record(each.rid, each)
 
     @require_using_db
-    def create_index(self, rel_name: str, idents: list):
+    def create_index(self, rel_name: str, idents: List[str]):
         if (rel_name not in self._tables):
             raise TableNotExistsError(rel_name)
         table = self._tables[rel_name]
-        raise NotImplementedError()
+        for each in idents:
+            table.create_index(table.get_column_idx(each))
 
     @require_using_db
-    def drop_index(self, rel_name: str, idents: list):
+    def drop_index(self, rel_name: str, idents: List[str]):
         if (rel_name not in self._tables):
             raise TableNotExistsError(rel_name)
         table = self._tables[rel_name]
-        raise NotImplementedError()
+        for each in idents:
+            table.drop_index(table.get_column_idx(each))
 
     @require_using_db
     def load(self, rel_name: str, file_name: str):
@@ -225,7 +227,7 @@ class SM_Manager():
         table.add_pk(pk_idx)
 
     @require_using_db
-    def drop_pk(self, rel_name: str):
+    def drop_pk(self, rel_name: str, pk_name: str):
         if (rel_name not in self._tables):
             raise TableNotExistsError(rel_name)
         table = self._tables[rel_name]
@@ -236,14 +238,14 @@ class SM_Manager():
         if (rel_name not in self._tables):
             raise TableNotExistsError(rel_name)
         table = self._tables[rel_name]
-        raise NotImplementedError()
+        table.add_pk(fk)
 
     @require_using_db
     def drop_fk(self, rel_name: str, fk_name: str):
         if (rel_name not in self._tables):
             raise TableNotExistsError(rel_name)
         table = self._tables[rel_name]
-        raise NotImplementedError()
+        table.drop_fk(fk_name)
 
     def help(self):
         pass
@@ -277,5 +279,7 @@ class SM_Manager():
     def get_using_db(self) -> str:
         return self._using_db
 
+    def show_indexes(self):
+        raise NotImplementedError()
 
 sm_manager = SM_Manager()

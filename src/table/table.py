@@ -11,6 +11,43 @@ from index_management.ix_manager import ix_manager
 from index_management.ix_index_scan import IX_IndexScan
 
 class Table():
+    def sync_fk_pk(self):
+        info = {}
+        info["primary_key_size"] = len(self._pk)
+        info["primary_key"] = self._pk
+        info["foreign_key_size"] = len(self._fk)
+        info["foreign_key"] = self._fk
+        self._file_handle.set_primary_foreign_key()
+
+    def add_pk(self, pk: List[int]):
+        if(len(self._pk) != 0):
+            raise Exception("Primary key already exists")
+        for each in pk:
+            self.create_index(each)
+        self._pk = pk
+        self.sync_fk_pk()
+
+    def add_fk(self, fk: Dict):
+        for each in self._fk:
+            if each['foreign_key_name'] == fk['foreign_key_name']:
+                raise Exception("Foreign key already exists")
+        self._fk.append(fk)
+        self.sync_fk_pk()
+
+    def drop_pk(self):
+        if(len(self._pk) == 0):
+            raise Exception("Primary key not exists")
+        self._pk = []
+        self.sync_fk_pk()
+
+    def drop_fk(self, fk_name: str):
+        for each in self._fk:
+            if each['foreign_key_name'] == fk_name:
+                self._fk.remove(each)
+                self.sync_fk_pk()
+                return
+        raise Exception("Foreign key not found")
+
     def get_fk(self):
         return self._fk
 
@@ -137,11 +174,9 @@ class Table():
         for each in pk:
             ix_manager.create_index(name)
 
-    def create_index(self, column_idx: int, ignore_exist: bool = False):
-        if(self._index_handles[column_idx] != None):
-            if(ignore_exist):
-                return
-            raise Exception("Index already exists")
+    def create_index(self, column_idx: int):
+        if(column_idx in self._pk):
+            return
         ix_manager.create_index(self._name, column_idx)
         self._index_handles[column_idx] = ix_manager.open_index(self._name, column_idx)
 
