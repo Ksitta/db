@@ -8,7 +8,7 @@ from config import *
 from common.common import *
 import struct
 from index_management.ix_manager import ix_manager
-
+from index_management.ix_index_scan import IX_IndexScan
 
 class Table():
     def get_fk(self):
@@ -21,13 +21,52 @@ class Table():
                 return i
     
     def check_primary_key(self, value: List[Union[int, float, str]]):
-        pk_values = [value[i] for i in self._pk]
-        pass
-    
+        scaner = IX_IndexScan()
+        result: Dict[int, set] = {}
+        for i in self._pk:
+            val = value[i]
+            handle = self._index_handles[i]
+            scaner.open_scan(handle, val, val)
+            result_i = set()
+            while(True):
+                res = scaner.next()
+                if(res is None):
+                    break
+                result_i.add(res)
+            scaner.close_scan()
+            result[i] = result_i
+        
+        # intersection all result
+        for each in result:
+            result_i.intersection_update(result[each])
+
+        if(len(result_i) != 0):
+            raise Exception("Primary key conflict")
     
     def check_foreign_key(self, idx: List[int], value: List[Union[int, float, str]]):
-        pass
+        scaner = IX_IndexScan()
+        result: Dict[int, set] = {}
+        i = 0
+        for each in idx:
+            val = value[i]
+            handle = self._index_handles[each]
+            scaner.open_scan(handle, val, val)
+            result_each = set()
+            while(True):
+                res = scaner.next()
+                if(res is None):
+                    break
+                result_each.add(res)
+            scaner.close_scan()
+            result[each] = result_each
+            i = i + 1
         
+        # intersection all result
+        for each in result:
+            result_each.intersection_update(result[each])
+        
+        if(len(result_each) == 0):
+            raise Exception("Foreign key not found")
 
     def describe(self):
         result = list()
