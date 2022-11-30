@@ -21,6 +21,8 @@ class Table():
                 return i
     
     def check_primary_key(self, value: List[Union[int, float, str]]):
+        if (len(self._pk) == 0):
+            return
         scaner = IX_IndexScan()
         result: Dict[int, set] = {}
         for i in self._pk:
@@ -132,12 +134,20 @@ class Table():
         file_handle.init_meta(meta)
 
         rm_manager.close_file(name)
+        for each in pk:
+            ix_manager.create_index(name)
 
-    def create_index(self, column_idx: int):
+    def create_index(self, column_idx: int, ignore_exist: bool = False):
+        if(self._index_handles[column_idx] != None):
+            if(ignore_exist):
+                return
+            raise Exception("Index already exists")
         ix_manager.create_index(self._name, column_idx)
         self._index_handles[column_idx] = ix_manager.open_index(self._name, column_idx)
 
     def drop_index(self, column_idx: int):
+        if(self._index_handles[column_idx] == None):
+            raise Exception("Index not exists")
         del self._index_handles[column_idx]
         ix_manager.destroy_index(self._name, column_idx)
 
