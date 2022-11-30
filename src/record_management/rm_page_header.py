@@ -26,16 +26,15 @@ class RM_PageHeader:
     def deserialize(data:np.ndarray):
         ''' Deserialize np.ndarray[(>=RM_PageHeader.size(),), uint8] to page header.
         '''
-        bytes = data[:RM_PageHeader.size()].tobytes()
-        (record_cnt, next_free) = struct.unpack(f'{cf.BYTE_ORDER}ii', bytes)
-        return RM_PageHeader(record_cnt, next_free)
+        buffer = data[:RM_PageHeader.size()].tobytes()
+        return RM_PageHeader(*struct.unpack(f'{cf.BYTE_ORDER}ii', buffer))
     
     
     def serialize(self) -> np.ndarray:
         ''' Serialize page header to np.ndarray[(RM_PageHeader.size(),), uint8].
         '''
-        bytes = struct.pack(f'{cf.BYTE_ORDER}ii', self.record_cnt, self.next_free)
-        return np.frombuffer(bytes, dtype=np.uint8).copy()
+        buffer = struct.pack(f'{cf.BYTE_ORDER}ii', self.record_cnt, self.next_free)
+        return np.frombuffer(buffer, dtype=np.uint8)
     
 
 if __name__ == '__main__':

@@ -22,14 +22,10 @@ class RM_FileHandle:
             data_file_id: int, the data_file_id.
         '''
         self.file_name = file_name
-        self.meta_file_name = file_name + cf.TABLE_META_SUFFIX
-        self.data_file_name = file_name + cf.TABLE_DATA_SUFFIX
         self.meta_file_id = meta_file_id
         self.data_file_id = data_file_id
         self.meta = {}
         self.meta_modified = False  # whether meta in mem is the same as it in disk
-        self.page_headers = []
-        self.bitmaps = []
         self.is_opened = True
         
         

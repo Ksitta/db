@@ -14,8 +14,6 @@ except AttributeError as exception:
 DATABASE_PATH = "./test_databases"
 TABLE_META_SUFFIX = ".meta"
 TABLE_DATA_SUFFIX = ".data"
-INDEX_META_SUFFIX = '.ixmeta'
-INDEX_DATA_SUFFIX = '.ixdata'
 
 # record management
 BYTE_ORDER = '<'
@@ -24,6 +22,12 @@ TYPE_FLOAT = 1      # field type float, size = 8
 TYPE_STR = 2        # filed type str, size >= 0
 SIZE_INT = 4        # size of int32, unchangable
 SIZE_FLOAT = 8      # size of float64, unchangable
+
+# index management
+INDEX_META_SUFFIX = '.ixmeta'
+INDEX_DATA_SUFFIX = '.ixdata'
+NODE_TYPE_INTER = 0
+NODE_TYPE_LEAF = 1
 
 # unit test
 TEST_ROOT = f'./test_root'
