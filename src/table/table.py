@@ -7,14 +7,27 @@ from typing import List, Union, Dict
 from config import *
 from common.common import *
 import struct
+from index_management.ix_manager import ix_manager
 
 
 class Table():
+    def get_fk(self):
+        return self._fk
+
     def get_column_idx(self, col_name: str) -> int:
         for i in range(len(self._columns)):
             each = self._columns[i]
             if each.name == col_name:
                 return i
+    
+    def check_primary_key(self, value: List[Union[int, float, str]]):
+        pk_values = [value[i] for i in self._pk]
+        pass
+    
+    
+    def check_foreign_key(self, idx: List[int], value: List[Union[int, float, str]]):
+        pass
+        
 
     def describe(self):
         result = list()
@@ -34,70 +47,83 @@ class Table():
     def get_name(self) -> str:
         return self._name
 
-    def __init__(self, name: str, columns: list = None, pk: List[int] = None, fk: List[Dict] = None) -> None:
+    @staticmethod
+    def create_table(name: str, columns: list, pk: List[int], fk: List[Dict]):
+        rm_manager.create_file(name)
+
+        file_handle: RM_FileHandle = rm_manager.open_file(name)
+        columns: List[Column] = columns
+        pk: List[int] = pk
+        fk: List[Dict] = fk
+
+        meta: dict = dict()
+        meta['column_number'] = len(columns)
+
+        record_size: int = 0
+        meta_columns: list = list()
+
+        for i in columns:
+            each: Column = i
+            column: dict = dict()
+            column['column_type'] = each.type
+            column['column_size'] = each.size
+            column['column_name_length'] = len(each.name)
+            column['column_name'] = each.name
+            column['column_default_en'] = each.default_val != None
+            column['column_default'] = np.zeros(each.size, dtype=np.uint8)
+            if(each.default_val != None):
+                if(each.type == TYPE_INT):
+                    column['column_default'][0:each.size] = np.frombuffer(struct.pack(f'{BYTE_ORDER}i', each.default_val), dtype=np.uint8)
+                if(each.type == TYPE_FLOAT):
+                    column['column_default'][0:each.size] = np.frombuffer(struct.pack(f'{BYTE_ORDER}d', each.default_val), dtype=np.uint8)
+                if(each.type == TYPE_STR):
+                    s = bytes(each.default_val, encoding='utf-8')[:each.size]
+                    column['column_default'][0:each.size] = np.frombuffer(s, dtype=np.uint8)
+            meta_columns.append(column)
+            record_size += each.size
+        
+        meta['record_size'] = record_size
+        meta['column_number'] = len(meta_columns)
+        meta['columns'] = meta_columns
+
+        meta['primary_key_size'] = len(pk)
+        meta['primary_keys'] = pk
+        meta['foreign_key_number'] = len(fk)
+        meta['foreign_keys'] = fk
+        file_handle.init_meta(meta)
+
+        rm_manager.close_file(name)
+
+    def create_index(self, column_idx: int):
+        ix_manager.create_index(self._name, column_idx)
+        self._index_handles[column_idx] = ix_manager.open_index(self._name, column_idx)
+
+    def drop_index(self, column_idx: int):
+        del self._index_handles[column_idx]
+        ix_manager.destroy_index(self._name, column_idx)
+
+    def __init__(self, name: str) -> None:
         self._name: str = name
-        if columns == None:
-            self._file_handle: RM_FileHandle = rm_manager.open_file(name)
-            meta: dict = self._file_handle.read_meta()
-            columns: List[Column] = list()
-            for each in meta['columns']:
-                columns.append(Column(each['column_name'], each['column_type'], each['column_size'], False))
-            
-            # metas
-            self._columns = columns
-            self._pk: List[int]  = meta['primary_keys']
-            self._fk: List[Dict] = meta['foreign_keys']
-
-        else:
-            rm_manager.create_file(name)
-
-            # metas
-            self._file_handle: RM_FileHandle = rm_manager.open_file(name)
-            self._columns: List[Column] = columns
-            self._pk: List[int] = pk
-            self._fk: List[Dict] = fk
-
-            meta: dict = dict()
-            meta['column_number'] = len(columns)
-
-            record_size: int = 0
-            meta_columns: list = list()
-
-            for i in columns:
-                each: Column = i
-                column: dict = dict()
-                column['column_type'] = each.type
-                column['column_size'] = each.size
-                column['column_name_length'] = len(each.name)
-                column['column_name'] = each.name
-                column['column_default_en'] = each.default_val != None
-                column['column_default'] = np.zeros(each.size, dtype=np.uint8)
-                if(each.default_val != None):
-                    if(each.type == TYPE_INT):
-                        column['column_default'][0:each.size] = np.frombuffer(struct.pack(f'{BYTE_ORDER}i', each.default_val), dtype=np.uint8)
-                    if(each.type == TYPE_FLOAT):
-                        column['column_default'][0:each.size] = np.frombuffer(struct.pack(f'{BYTE_ORDER}d', each.default_val), dtype=np.uint8)
-                    if(each.type == TYPE_STR):
-                        s = bytes(each.default_val, encoding='utf-8')[:each.size]
-                        column['column_default'][0:each.size] = np.frombuffer(s, dtype=np.uint8)
-                meta_columns.append(column)
-                record_size += each.size
-            
-            meta['record_size'] = record_size
-            meta['column_number'] = len(meta_columns)
-            meta['columns'] = meta_columns
-
-            meta['primary_key_size'] = len(pk)
-            meta['primary_keys'] = pk
-            meta['foreign_key_number'] = len(fk)
-            meta['foreign_keys'] = fk
-            self._file_handle.init_meta(meta)
+        self._file_handle: RM_FileHandle = rm_manager.open_file(name)
+        meta: dict = self._file_handle.read_meta()
+        columns: List[Column] = list()
+        for each in meta['columns']:
+            columns.append(Column(each['column_name'], each['column_type'], each['column_size'], False))
+        
+        # metas
+        self._columns = columns
+        self._pk: List[int]  = meta['primary_keys']
+        self._fk: List[Dict] = meta['foreign_keys']
+        indexs: List[int] = ix_manager.query_index(".", name)
+        self._index_handles = {i: ix_manager.open_index(name, i) for i in indexs}
 
     def __del__(self) -> None:
+        for each in self._index_handles:
+            ix_manager.close_index(self._name, each)
         self._file_handle.sync_meta()
         rm_manager.close_file(self._name)
 
-    def _check_fields(self, fields: List[Union[int, float, str, None]]):
+    def check_fields(self, fields: List[Union[int, float, str, None]]):
         if(len(fields) != len(self._columns)):
             raise Exception("Field number not match")
         for i in range(len(fields)):
@@ -115,7 +141,6 @@ class Table():
                     raise Exception("Field type not match")
                 
     def insert_record(self, fields: List[Union[int, float, str, None]]):
-        self._check_fields(fields)
         data: np.ndarray = self._file_handle.pack_record(fields)
         self._file_handle.insert_record(data)
 

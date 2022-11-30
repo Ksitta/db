@@ -102,14 +102,16 @@ class SM_Manager():
                 raise DuplicateForeignKeyError()
             if(len(set(target_idx)) != len(target_idx)):
                 raise DuplicateForeignKeyError()
-            target_columns = self._tables[fk_dict["target_table_name"]].get_columns()
+            target_columns = self._tables[fk_dict["target_table_name"]].get_columns(
+            )
             for i in range(len(local_idx)):
                 if (columns[local_idx[i]].type != target_columns[target_idx[i]].type or columns[local_idx[i]].size != target_columns[target_idx[i]].size):
                     raise ForeignKeyTypeError()
             fk_dict["foreign_key_pairs"] = list(zip(local_idx, target_idx))
             fk_dict.pop("local_idents")
             fk_dict.pop("target_idents")
-        self._tables[rel_name] = Table(rel_name, columns, pk_idx, pk)
+        Table.create_table(rel_name, columns, pk_idx, fk)
+        self._tables[rel_name] = Table(rel_name)
 
     @require_using_db
     def describe_table(self, rel_name: str):
@@ -128,12 +130,24 @@ class SM_Manager():
         self._tables.remove(rel_name)
         rm_manager.remove_file(rel_name)
 
+    def _check_insert(self, table: Table, values: List[Union[int, str, float]]):
+        table.check_fields(values)
+        table.check_primary_key(values)
+        for each in table.get_fk():
+            target_table = self._tables[each["target_table_name"]]
+            fk_pairs: List[tuple] = each["foreign_key_pairs"]
+            local_idx, target_idx = zip(
+                *[fk_pairs[i] for i in range(len(each["foreign_key_pairs"]))])
+            local_values = [values[i] for i in local_idx]
+            target_table.check_foreign_key(target_idx, local_values)
+
     @require_using_db
     def insert(self, rel_name: str, values: List[List[Union[int, float, str]]]):
         if (rel_name not in self._tables):
             raise TableNotExistsError(rel_name)
         table = self._tables[rel_name]
         for each in values:
+            self._check_insert(table, each)
             table.insert_record(each)
 
     @require_using_db
@@ -216,7 +230,7 @@ class SM_Manager():
             raise TableNotExistsError(rel_name)
         table = self._tables[rel_name]
         raise NotImplementedError()
-    
+
     @require_using_db
     def add_fk(self, rel_name: str, fk: Dict):
         if (rel_name not in self._tables):
