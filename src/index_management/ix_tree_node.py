@@ -167,8 +167,6 @@ class IX_TreeNode:
             page_no=page_no, entry_number=0, prev_sib=cf.INVALID,
             next_sib=cf.INVALID, child_key_number=0, first_child=cf.INVALID)
         self.entries:List[IX_TreeNodeEntry] = list()
-        self.data = np.zeros(cf.PAGE_SIZE, dtype=np.uint8)
-        self.data[:IX_TreeNodeHeader.size()] = self.header.serialize()
         self.data_modified = True
         
     
@@ -197,7 +195,7 @@ class IX_TreeNode:
         
     
     def insert_entry(self, idx:int, field_value:Union[int, float, str], page_no:int, slot_no:int) -> None:
-        ''' Insert an entry into the tree node.
+        ''' Insert an entry into the tree node. Use ONLY when this node is not full.
         args:
             idx: int, the insert position.
             field_value: Union[int, float, str], the field_value in node entry.
@@ -209,13 +207,6 @@ class IX_TreeNode:
         entry = IX_TreeNodeEntry(self.field_type, self.field_size, field_value, page_no, slot_no)
         self.header.entry_number += 1
         self.entries.insert(idx, entry)
-        header_size = IX_TreeNodeHeader.size()
-        entry_size = entry.size()
-        self.data[:header_size] = self.header.serialize()
-        for i in range(idx, len(self.entries)):
-            entry = self.entries[i]
-            off = header_size + i * entry_size
-            self.data[off:off+entry_size] = entry.serialize()
         self.data_modified = True
         
     
@@ -233,20 +224,51 @@ class IX_TreeNode:
             entries.append(IX_TreeNodeEntry.deserialize(field_type, field_size, data[off:off+entry_size]))
         node.header = header
         node.entries = entries
-        node.data[:] = data[:cf.PAGE_SIZE]
         return node
         
     
     def serialize(self) -> np.ndarray:
         ''' Serialize this tree node into a data page.
         '''
-        return self.data.copy()
+        header, entries = self.header, self.entries
+        header_size = IX_TreeNodeHeader.size()
+        entry_size = self.field_size + 8
+        data = np.zeros(cf.PAGE_SIZE, dtype=np.uint8)
+        data[:header_size] = header.serialize()
+        off = header_size
+        for entry in entries:
+            data[off:off+entry_size] = entry.serialize()
+            off += entry_size
+        return data
+    
+
+    def sync(self, file_id:int) -> None:
+        ''' Sync this node into disk.
+        '''
+        if not self.data_modified: return
+        pf_manager.write_page(file_id, self.header.page_no, self.serialize())
+        self.data_modified = False
         
     
-    def get_all_rids(self) -> List[RM_Rid]:
-        ''' Get 
+    def insert(self, field_value:Union[int, float, str], page_no:int, slot_no:int) -> None:
+        ''' Insert an entry to this node recursively.
+            Should use different strategies based on the node type.
+            Should deal with entry overflow and split the node recursively.
+        args:
+            field_value: Union[int, float, str], the field value in the entry.
+            page_no: int, if this node is internal node, page_no means the child node page.
+                If this node is leaf node, page_no means the rid.page_no.
+            slot_no: int, if this node is internal node, slot_no must be INVALID.
+                If this node is leaf node, slot_no means the rid.slot_no.
         '''
-        
+        (field_type, field_size, node_capacity) = \
+            (self.field_type, self.field_size, self.node_capacity)
+        header = self.header
+        entries = self.entries
+        if header.entry_number < node_capacity: # no need to split
+            pass
+        else:   # overflow, need to split this node
+            pass
     
     
 if __name__ == '__main__':

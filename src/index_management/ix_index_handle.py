@@ -116,14 +116,14 @@ class IX_IndexHandle:
         return current_page
     
     
-    def insert_entry(self, value:Union[int, float, str], rid:RM_Rid) -> None:
+    def insert_entry(self, field_value:Union[int, float, str], rid:RM_Rid) -> None:
         ''' Insert an entry to the index.
         '''
         if not self.is_opened:
             raise IndexNotOpenedError(f'Index {self.file_name}.{self.index_no} not opened.')
     
     
-    def remove_entry(self, value:Union[int, float, str], rid:RM_Rid) -> None:
+    def remove_entry(self, field_value:Union[int, float, str], rid:RM_Rid) -> None:
         ''' Remove an entry.
         '''
         if not self.is_opened:
