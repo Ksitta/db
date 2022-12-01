@@ -8,7 +8,6 @@ import config as cf
 from paged_file.pf_manager import pf_manager
 from record_management.rm_rid import RM_Rid
 from index_management.ix_tree_node import IX_TreeNodeHeader, IX_TreeNode
-from index_management.ix_rid_bucket import IX_RidBucket
 from errors.err_index_management import *
 
 

@@ -255,6 +255,8 @@ class IX_TreeNode:
         ''' Insert an entry to this node recursively.
             Should use different strategies based on the node type.
             Should deal with entry overflow and split the node recursively.
+            This interface must be called firstly on a leaf node
+            (i.e. will not deal with the search process).
         args:
             field_value: Union[int, float, str], the field value in the entry.
             page_no: int, if this node is internal node, page_no means the child node page.
@@ -267,7 +269,45 @@ class IX_TreeNode:
         header = self.header
         entries = self.entries
         if header.entry_number < node_capacity: # no need to split
-            pass
+            idx = self.search_child_idx(field_value)
+            if idx > 0 and entries[idx-1].field_value == field_value:
+                # encountered a reapeated entry in a leaf node
+                if header.node_type != cf.NODE_TYPE_LEAF:
+                    raise NodeInsertError(f'Encounter a repeated entry in a non-leaf node.')
+                entry = entries[idx-1]
+                if entry.slot_no == cf.INVALID:
+                    bucket_page = entry.page_no
+                    while True:     # find the first free bucket
+                        bucket = IX_RidBucket.deserialize(pf_manager.read_page(file_id, bucket_page))
+                        if bucket.free_space() > 0: break
+                        if bucket.header.next_page == cf.INVALID:   # alloc a new bucket
+                            new_page = pf_manager.append_page(file_id)
+                            bucket.set_next_page(new_page)
+                            bucket.sync(file_id, bucket_page)
+                            bucket = IX_RidBucket()
+                            bucket_page = new_page
+                            break
+                        bucket_page = bucket.header.next_page
+                    bucket.insert_rid(RM_Rid(page_no, slot_no))
+                    bucket.sync(file_id, bucket_page)
+                else:   # alloc the first bucket page here
+                    bucket_page = pf_manager.append_page(file_id)
+                    bucket = IX_RidBucket()
+                    bucket.insert_rid(RM_Rid(entry.page_no, entry.slot_no))
+                    bucket.insert_rid(RM_Rid(page_no, slot_no))
+                    bucket.sync(file_id, bucket_page)
+                    entry.page_no = bucket_page
+                    entry.slot_no = cf.INVALID
+            else:   # a different node entry
+                entries.insert(idx, IX_TreeNodeEntry(field_type,
+                    field_size, field_value, page_no, slot_no))
+                header.entry_number += 1
+                if header.parent != cf.INVALID:
+                    parent_node = IX_TreeNode.deserialize(file_id, field_type, field_size,
+                        node_capacity, pf_manager.read_page(file_id, header.parent))
+                    parent_node.header.child_key_number += 1
+                    parent_node.data_modified = True
+                    parent_node.sync()
         else:   # overflow, need to split this node
             pass
     
