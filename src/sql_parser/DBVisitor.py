@@ -114,7 +114,7 @@ class DBVisitor(SQLVisitor):
         djset = DisjointSet(idents_set)
 
         for each in selectors:
-            if(each.table_name is None):
+            if(each.table_name is None and each.col_name != "*"):
                 each.table_name = sm_manager.get_table_name(each.col_name, idents)
 
         # add scan node
@@ -281,35 +281,68 @@ class DBVisitor(SQLVisitor):
         self._table_scan[col.table_name].add_condition(cond)
 
     def visitWhere_operator_select(self, ctx: SQLParser.Where_operator_selectContext):
-        col = ctx.column.accept(self)
-        op = ctx.operator_.accept(self)
+        col = ctx.column().accept(self)
+        op = ctx.operator_().accept(self)
         raw_scan = self._table_scan
         raw_tables = self._table_names
         raw_table_join = self._table_join
         
-        select = ctx.select_table().accept(self)
+        records: RecordList = ctx.select_table().accept(self)
+        if (len(records.records) != 1):
+            raise Exception("Subquery must have only one record.")
+        if (len(records.columns) != 1):
+            raise Exception("Subquery must have only one column.")
 
         self._table_scan = raw_scan
         self._table_names = raw_tables
         self._table_join = raw_table_join
 
+        if (col.table_name is None):
+            col.table_name = sm_manager.get_table_name(col.col_name, self._table_names)
+        old_node = self._table_scan[col.table_name]
+        cond = AlgebraCondition(op, old_node.get_column_idx(col), records.records[0].data[0])
+        self._table_scan[col.table_name] = FilterNode(old_node, cond)
+
     def visitWhere_null(self, ctx: SQLParser.Where_nullContext):
-        col = ctx.column.accept(self)
+        col = ctx.column().accept(self)
         # if(ctx.Null() is not None):
         #     cond = AlgebraCondition(CompOp.NE, None)
         # else:
         #     cond = AlgebraCondition(CompOp.EQ, None)
 
     def visitWhere_in_list(self, ctx: SQLParser.Where_in_listContext):
-        col = ctx.column.accept(self)
-        pass
+        col = ctx.column().accept(self)
+        values = ctx.value_list().accept(self)
+
+        if (col.table_name is None):
+            col.table_name = sm_manager.get_table_name(col.col_name, self._table_names)
+        old_node = self._table_scan[col.table_name]
+        cond = InListCondition(old_node.get_column_idx(col), set(values))
+        self._table_scan[col.table_name] = FilterNode(old_node, cond)
 
     def visitWhere_in_select(self, ctx: SQLParser.Where_in_selectContext):
-        col = ctx.column.accept(self)
-        pass
+        col = ctx.column().accept(self)
+        raw_scan = self._table_scan
+        raw_tables = self._table_names
+        raw_table_join = self._table_join
+        
+        records: RecordList = ctx.select_table().accept(self)
+        if (len(records.columns) != 1):
+            raise Exception("Subquery must have only one column.")
+
+        self._table_scan = raw_scan
+        self._table_names = raw_tables
+        self._table_join = raw_table_join
+
+        if (col.table_name is None):
+            col.table_name = sm_manager.get_table_name(col.col_name, self._table_names)
+        old_node = self._table_scan[col.table_name]
+        values = [each.data[0] for each in records.records]
+        cond = InListCondition(old_node.get_column_idx(col), set(values))
+        self._table_scan[col.table_name] = FilterNode(old_node, cond)
 
     def visitWhere_like_string(self, ctx: SQLParser.Where_like_stringContext):
-        col = ctx.column.accept(self)
+        col = ctx.column().accept(self)
         pass
 
     def visitColumn(self, ctx: SQLParser.ColumnContext) -> Col:
@@ -338,7 +371,7 @@ class DBVisitor(SQLVisitor):
             if(ctx.aggregator() is not None):
                 col.aggregator = ctx.aggregator().accept(self)
             return col
-        return Col(None, None, Aggregator.COUNT)
+        return Col("*", None, Aggregator.COUNT)
     
     def visitIdentifiers(self, ctx: SQLParser.IdentifiersContext):
         idents: List[str] = [str(each) for each in ctx.Identifier()]
