@@ -150,10 +150,11 @@ class IX_TreeNodeEntry:
 class IX_TreeNode:
     
     
-    def __init__(self, field_type:int, field_size:int, node_capacity:int,
+    def __init__(self, file_id:int, field_type:int, field_size:int, node_capacity:int,
             node_type:int, parent:int, page_no:int):
         ''' Init an empty tree node.
         args:
+            file_id: int, the data file id of this node.
             field_type: int, in {TYPE_INT, TYPE_FLOAT, TYPE_STR}.
             field_size: int, entry key size in bytes, not including page_no and slot_no.
             node_capacity: int, how many entries a node can store.
@@ -161,8 +162,8 @@ class IX_TreeNode:
             parent: int, the parent page number, INVALID for no parent (root).
             page_no: int, page number of the current tree node.
         '''
-        (self.field_type, self.field_size, self.node_capacity) = \
-            (field_type, field_size, node_capacity)
+        (self.file_id, self.field_type, self.field_size, self.node_capacity) = \
+            (file_id, field_type, field_size, node_capacity)
         self.header = IX_TreeNodeHeader(node_type=node_type, parent=parent,
             page_no=page_no, entry_number=0, prev_sib=cf.INVALID,
             next_sib=cf.INVALID, child_key_number=0, first_child=cf.INVALID)
@@ -211,10 +212,10 @@ class IX_TreeNode:
         
     
     @staticmethod
-    def deserialize(field_type:int, field_size:int, node_capacity:int, data:np.ndarray):
+    def deserialize(file_id:int, field_type:int, field_size:int, node_capacity:int, data:np.ndarray):
         ''' Deserialize a data page into tree node.
         '''
-        node = IX_TreeNode(field_type, field_size, node_capacity, 0, 0, 0)
+        node = IX_TreeNode(file_id, field_type, field_size, node_capacity, 0, 0, 0)
         header_size = IX_TreeNodeHeader.size()
         entry_size = field_size + 8
         header = IX_TreeNodeHeader.deserialize(data[:header_size])
@@ -242,11 +243,11 @@ class IX_TreeNode:
         return data
     
 
-    def sync(self, file_id:int) -> None:
+    def sync(self) -> None:
         ''' Sync this node into disk.
         '''
         if not self.data_modified: return
-        pf_manager.write_page(file_id, self.header.page_no, self.serialize())
+        pf_manager.write_page(self.file_id, self.header.page_no, self.serialize())
         self.data_modified = False
         
     
@@ -261,8 +262,8 @@ class IX_TreeNode:
             slot_no: int, if this node is internal node, slot_no must be INVALID.
                 If this node is leaf node, slot_no means the rid.slot_no.
         '''
-        (field_type, field_size, node_capacity) = \
-            (self.field_type, self.field_size, self.node_capacity)
+        (file_id, field_type, field_size, node_capacity) = \
+            (self.file_id, self.field_type, self.field_size, self.node_capacity)
         header = self.header
         entries = self.entries
         if header.entry_number < node_capacity: # no need to split
