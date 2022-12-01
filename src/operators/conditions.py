@@ -7,7 +7,9 @@ class Condition:
     """ Base class for all operators.
         This class defines the
     """
-    pass
+    def get_col_idx(self) -> int:
+        return -1
+
 
 class AlgebraCondition(Condition):
     def _eq(self, left, right):
@@ -28,26 +30,30 @@ class AlgebraCondition(Condition):
     def _le(self, left, right):
         return left <= right
 
-    def __init__(self, operator: Operator, col_idx: int, value: Union[int, str, float]):
+    def __init__(self, operator: CompOp, col_idx: int, value: Union[int, str, float]):
         self._col_idx = col_idx
         self._value = value
-        if (operator == Operator.OP_EQ):
+        self._operator = operator
+        if (operator == CompOp.EQ):
             self._compare = self._eq
-        elif (operator == Operator.OP_NE):
+        elif (operator == CompOp.NE):
             self._compare = self._neq
-        elif (operator == Operator.OP_GT):
+        elif (operator == CompOp.GT):
             self._compare = self._gt
-        elif (operator == Operator.OP_GE):
+        elif (operator == CompOp.GE):
             self._compare = self._ge
-        elif (operator == Operator.OP_LT):
+        elif (operator == CompOp.LT):
             self._compare = self._lt
-        elif (operator == Operator.OP_LE):
+        elif (operator == CompOp.LE):
             self._compare = self._le
         else:
             raise Exception("Invalid operator")
 
     def fit(self, record: Record):
         return self._compare(record.data[self._col_idx], self._value)
+
+    def get_col_idx(self) -> int:
+        return self._col_idx
 
 
 class JoinCondition(Condition):

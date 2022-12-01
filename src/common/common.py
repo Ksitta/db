@@ -3,21 +3,7 @@ from config import *
 import numpy as np
 from typing import List, Union
 from record_management.rm_rid import RM_Rid
-
-class Operator(Enum):
-    OP_EQ = 0
-    OP_LT = 1
-    OP_LE = 2
-    OP_GT = 3
-    OP_GE = 4
-    OP_NE = 5
-
-class Aggregator(Enum):
-    COUNT = 0
-    AVG = 1
-    MAX = 2
-    MIN = 3
-    SUM = 4
+from utils.enums import *
 
 class Col:
     def __init__(self, col_name: str, table_name: str = None, aggregator: Aggregator = None):

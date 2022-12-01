@@ -118,7 +118,7 @@ class DBVisitor(SQLVisitor):
                 each.table_name = sm_manager.get_table_name(each.col_name, idents)
 
         # add scan node
-        self._table_scan: Dict[str, OperatorBase] = {}
+        self._table_scan: Dict[str, TableScanNode] = {}
         for each in idents:
             self._table_scan[each] = TableScanNode(sm_manager.get_table(each))
 
@@ -278,7 +278,7 @@ class DBVisitor(SQLVisitor):
             col.table_name = sm_manager.get_table_name(col.col_name, self._table_names)
         old_node = self._table_scan[col.table_name]
         cond = AlgebraCondition(op, old_node.get_column_idx(col), exp)
-        self._table_scan[col.table_name] = FilterNode(old_node, cond)
+        self._table_scan[col.table_name].add_condition(cond)
 
     def visitWhere_operator_select(self, ctx: SQLParser.Where_operator_selectContext):
         col = ctx.column.accept(self)
@@ -296,9 +296,9 @@ class DBVisitor(SQLVisitor):
     def visitWhere_null(self, ctx: SQLParser.Where_nullContext):
         col = ctx.column.accept(self)
         # if(ctx.Null() is not None):
-        #     cond = AlgebraCondition(Operator.OP_NE, None)
+        #     cond = AlgebraCondition(CompOp.NE, None)
         # else:
-        #     cond = AlgebraCondition(Operator.OP_EQ, None)
+        #     cond = AlgebraCondition(CompOp.EQ, None)
 
     def visitWhere_in_list(self, ctx: SQLParser.Where_in_listContext):
         col = ctx.column.accept(self)
@@ -346,17 +346,17 @@ class DBVisitor(SQLVisitor):
     
     def visitOperator_(self, ctx: SQLParser.Operator_Context):
         if (ctx.EqualOrAssign() is not None):
-            return Operator.OP_EQ
+            return CompOp.EQ
         if (ctx.Less() is not None):
-            return Operator.OP_LT
+            return CompOp.LT
         if (ctx.LessEqual() is not None):
-            return Operator.OP_LE
+            return CompOp.LE
         if (ctx.Greater() is not None):
-            return Operator.OP_GT
+            return CompOp.GT
         if (ctx.GreaterEqual() is not None):
-            return Operator.OP_GE
+            return CompOp.GE
         if (ctx.NotEqual() is not None):
-            return Operator.OP_NE
+            return CompOp.NE
     
     def visitAggregator(self, ctx: SQLParser.AggregatorContext):
         if (ctx.Count() is not None):

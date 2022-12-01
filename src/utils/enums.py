@@ -10,4 +10,11 @@ class CompOp(Enum):
     GE = 4  # greater than or equal
     NE = 5  # not equal
     NO = 6  # no comparison
-    
+
+@unique
+class Aggregator(Enum):
+    COUNT = 0
+    AVG = 1
+    MAX = 2
+    MIN = 3
+    SUM = 4

@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from typing import List
 from table.table import Table
-from operators.conditions import Condition
+from operators.conditions import Condition, AlgebraCondition
 from common.common import *
 from operators.conditions import *
 
@@ -116,15 +116,33 @@ class TableScanNode(OperatorBase):
     def __init__(self, table: Table):
         self._table = table
         tb_name = table.get_name()
+        self._inline_condition = []
+        self._condition = []
         self._columns = [Col(col_name, tb_name)
                          for col_name in table.get_column_names()]
 
     def process(self) -> RecordList:
-        result: List[Record] = self._table.load_all_records()
+        if (len(self._inline_condition) == 0):
+            records: List[Record] = self._table.load_all_records()
+        else:
+            records: List[Record] = self._table.load_records_with_cond(self._inline_condition)
         table_name = self._table.get_name()
         cols = [Col(each, table_name)
                 for each in self._table.get_column_names()]
-        return RecordList(cols, result)
+        results = []
+        for each in records:
+            for cond in self._condition:
+                if (not cond.fit(each)):
+                    break
+            else:
+                results.append(each)
+        return RecordList(cols, results)
+
+    def add_condition(self, cond: Condition):
+        if(self._table.index_exist(cond.get_col_idx())):
+            self._inline_condition.append(cond)
+        else:
+            self._condition.append(cond)
 
 
 class JoinNode(OperatorBase):

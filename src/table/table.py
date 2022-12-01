@@ -3,14 +3,18 @@ from record_management.rm_file_handle import RM_FileHandle
 from record_management.rm_file_scan import RM_FileScan
 from record_management.rm_rid import RM_Rid
 import numpy as np
-from typing import List, Union, Dict
+from typing import List, Union, Dict, Set
 from config import *
 from common.common import *
 import struct
 from index_management.ix_manager import ix_manager
 from index_management.ix_index_scan import IX_IndexScan
+from operators.conditions import Condition, AlgebraCondition
 
 class Table():
+    def index_exist(self, column_idx: int) -> bool:
+        return column_idx in self._index_handles
+    
     def sync_fk_pk(self):
         info = {}
         info["primary_key_size"] = len(self._pk)
@@ -245,7 +249,26 @@ class Table():
             records.append(Record(rec, each.rid))
         scaner.close_scan()
         return records
-
+    
+    def load_records_with_cond(self, conds: List[AlgebraCondition]):
+        scanner = IX_IndexScan()
+        rid_sets = []
+        for each in conds:
+            scanner.open_scan(self._index_handles[each.get_col_idx()], each._operator, each._value)
+            rid_gen = scanner.next()
+            rids = set()
+            for each in rid_gen:
+                rids.append(each)
+            rid_sets.append(rids)
+            scanner.close_scan()
+        
+        res: Set[RM_Rid] = rid_sets[0]
+        for each in rid_sets[1:]:
+            res = res.intersection(each)
+        
+        records = [self._file_handle.get_record(each) for each in res]
+        return records
+        
     def get_column_names(self) -> List[str]:
         return [i.name for i in self._columns]
 
