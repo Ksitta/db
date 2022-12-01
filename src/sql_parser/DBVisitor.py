@@ -221,7 +221,7 @@ class DBVisitor(SQLVisitor):
         else:
             ident = str(ident)
             target_table = str(target_table)
-            
+
         fk = {}
         fk["foreign_key_name"] = ident
         fk["foreign_key_name_length"] = len(ident)
@@ -306,7 +306,7 @@ class DBVisitor(SQLVisitor):
             col.table_name = sm_manager.get_table_name(col.col_name, self._table_names)
         old_node = self._table_scan[col.table_name]
         cond = AlgebraCondition(op, old_node.get_column_idx(col), records.records[0].data[0])
-        self._table_scan[col.table_name] = FilterNode(old_node, cond)
+        self._table_scan[col.table_name].add_condition(cond)
 
     def visitWhere_null(self, ctx: SQLParser.Where_nullContext):
         col = ctx.column().accept(self)
@@ -323,7 +323,7 @@ class DBVisitor(SQLVisitor):
             col.table_name = sm_manager.get_table_name(col.col_name, self._table_names)
         old_node = self._table_scan[col.table_name]
         cond = InListCondition(old_node.get_column_idx(col), set(values))
-        self._table_scan[col.table_name] = FilterNode(old_node, cond)
+        self._table_scan[col.table_name].add_condition(cond)
 
     def visitWhere_in_select(self, ctx: SQLParser.Where_in_selectContext):
         col = ctx.column().accept(self)
@@ -344,7 +344,7 @@ class DBVisitor(SQLVisitor):
         old_node = self._table_scan[col.table_name]
         values = [each.data[0] for each in records.records]
         cond = InListCondition(old_node.get_column_idx(col), set(values))
-        self._table_scan[col.table_name] = FilterNode(old_node, cond)
+        self._table_scan[col.table_name].add_condition(cond)
 
     def visitWhere_like_string(self, ctx: SQLParser.Where_like_stringContext):
         col = ctx.column().accept(self)
