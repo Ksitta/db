@@ -99,7 +99,7 @@ class RM_FileHandle:
         for _ in range(column_number):
             (column_type, column_size, column_name_length) = struct.unpack(f'{BYTE_ORDER}iii', data[off:off+12])
             off += 12
-            column_name = str(data[off:off+column_name_length], encoding='utf-8')
+            column_name = str(data[off:off+column_name_length], encoding='utf-8').strip('\0')
             off += column_name_length
             (column_default_en,) = struct.unpack(f'{BYTE_ORDER}b', data[off:off+1])
             off += 1
@@ -118,11 +118,11 @@ class RM_FileHandle:
         foreign_keys = []
         for _ in range(foreign_key_number):
             (foreign_key_name_length,) = struct.unpack(f'{BYTE_ORDER}i', data[off:off+4]); off += 4
-            (foreign_key_name,) = struct.unpack(f'{BYTE_ORDER}{foreign_key_name_length}s',
-                data[off:off+foreign_key_name_length]); off += foreign_key_name_length
+            foreign_key_name = str(data[off:off+foreign_key_name_length], encoding='utf-8').strip('\0')
+            off += foreign_key_name_length
             (target_table_name_length,) = struct.unpack(f'{BYTE_ORDER}i', data[off:off+4]); off += 4
-            (target_table_name,) = struct.unpack(f'{BYTE_ORDER}{target_table_name_length}s',
-                data[off:off+target_table_name_length]); off += target_table_name_length
+            target_table_name = str(data[off:off+target_table_name_length], encoding='utf-8').strip('\0')
+            off += target_table_name_length
             (foreign_key_size,) = struct.unpack(f'{BYTE_ORDER}i', data[off:off+4]); off += 4
             pairs = list(struct.unpack(f'{BYTE_ORDER}{2*foreign_key_size}i',
                 data[off:off+8*foreign_key_size])); off += 8*foreign_key_size
