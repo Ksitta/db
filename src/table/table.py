@@ -86,7 +86,7 @@ class Table():
         if(len(result_i) != 0):
             raise Exception("Primary key conflict")
     
-    def check_foreign_key(self, idx: List[int], value: List[Union[int, float, str]]):
+    def check_foreign_key(self, idx: List[int], value: List[Union[int, float, str]], is_insert: bool):
         scaner = IX_IndexScan()
         result: Dict[int, set] = {}
         i = 0
@@ -107,9 +107,19 @@ class Table():
         # intersection all result
         for each in result:
             result_each.intersection_update(result[each])
-        
-        if(len(result_each) == 0):
-            raise Exception("Foreign key not found")
+        if(is_insert):
+            if(len(result_each) == 0):
+                raise Exception("Foreign key not found")
+        else:
+            if(len(result_each) != 0):
+                raise Exception("Foreign key exists")
+
+    def check_foreign_key_on_delete(self, target_table: str, values: List[Union[int, float, str]]):
+        for each in self._fk:
+            if each['target_table'] == target_table:
+                idx = [pair[0] for pair in each['foreign_key_pairs']]
+                vals = [values[pair[1]] for pair in each['foreign_key_pairs']]
+                self.check_foreign_key(idx, vals, False)
 
     def describe(self):
         result = list()
