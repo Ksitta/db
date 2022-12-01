@@ -71,11 +71,9 @@ class Table():
             handle = self._index_handles[i]
             scaner.open_scan(handle, val, val)
             result_i = set()
-            while(True):
-                res = scaner.next()
-                if(res is None):
-                    break
-                result_i.add(res)
+            res_gen = scaner.next()
+            for each in res_gen:
+                result_i.add(each)
             scaner.close_scan()
             result[i] = result_i
         
@@ -182,11 +180,12 @@ class Table():
         meta['primary_keys'] = pk
         meta['foreign_key_number'] = len(fk)
         meta['foreign_keys'] = fk
+
         file_handle.init_meta(meta)
 
         rm_manager.close_file(name)
         for each in pk:
-            ix_manager.create_index(name)
+            ix_manager.create_index(name, each)
 
     def create_index(self, column_idx: int):
         if(column_idx in self._pk):

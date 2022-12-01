@@ -214,19 +214,24 @@ class DBVisitor(SQLVisitor):
 
     def visitForeign_key_field(self, ctx: SQLParser.Foreign_key_fieldContext):
         ident = ctx.Identifier(0)
-        if (ident is None):
+        target_table = ctx.Identifier(1)
+        if (target_table is None):
+            target_table = str(ident)
             ident = "_fk_" + str(len(self._fk))
+        else:
+            ident = str(ident)
+            target_table = str(target_table)
+            
         fk = {}
         fk["foreign_key_name"] = ident
         fk["foreign_key_name_length"] = len(ident)
 
-        target_table = str(ctx.Identifier(1))
         fk["target_table_name"] = target_table
         fk["target_table_name_length"] = len(target_table)
 
         local_idents = ctx.identifiers(0).accept(self)
         target_idents = ctx.identifiers(1).accept(self)
-        if (len(self._fk["local_idents"]) != len(self._fk["target_idents"])):
+        if (len(local_idents) != len(target_idents)):
             raise Exception(
                 "Foreign key error: local idents and target idents are not equal.")
 

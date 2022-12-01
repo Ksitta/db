@@ -59,7 +59,7 @@ class RecordList():
         self.columns = columns
 
     def get_column_idx(self, col: Col) -> int:
-        if(col.table_name is None and col.col_name is "*"):
+        if(col.table_name is None and col.col_name == "*"):
             return 0
         for i in range(len(self.columns)):
             each = self.columns[i]

@@ -161,12 +161,15 @@ class JoinNode(OperatorBase):
         left_result: RecordList = self._left.process()
         right_result: RecordList = self._right.process()
         result: List[Record] = []
-        self._condition._left_col = self._left.get_column_idx(
-            self._condition._left_col)
-        self._condition._right_col = self._right.get_column_idx(
-            self._condition._right_col)
-        for left_record in left_result.records:
-            for right_record in right_result.records:
-                if self._condition.fit(left_record, right_record):
-                    result.append(Record.concat(left_record, right_record))
+        left_col = self._left.get_column_idx(self._condition._left_col)
+        right_col = self._right.get_column_idx(self._condition._right_col)
+        left_dict = {}
+        for each in left_result.records:
+            left_dict.setdefault(each.data[left_col], []).append(each)
+
+        for right_record in right_result.records:
+            if right_record.data[right_col] in left_dict:
+                for each in left_dict[right_record.data[right_col]]:
+                    result.append(Record.concat(each, right_record))
+                    
         return RecordList(left_result.columns + right_result.columns, result)

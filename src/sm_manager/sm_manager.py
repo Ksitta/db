@@ -96,14 +96,15 @@ class SM_Manager():
             raise DuplicatePrimaryKeyError()
         for fk_dict in fk:
             local_idx = [names.index(each) for each in fk_dict["local_idents"]]
-            target_idx = [names.index(each)
+            target_table = sm_manager.get_table(fk_dict["target_table_name"])
+            tnames = target_table.get_column_names()
+            target_idx = [tnames.index(each)
                           for each in fk_dict["target_idents"]]
             if(len(set(local_idx)) != len(local_idx)):
                 raise DuplicateForeignKeyError()
             if(len(set(target_idx)) != len(target_idx)):
                 raise DuplicateForeignKeyError()
-            target_columns = self._tables[fk_dict["target_table_name"]].get_columns(
-            )
+            target_columns = self._tables[fk_dict["target_table_name"]].get_columns()
             for i in range(len(local_idx)):
                 if (columns[local_idx[i]].type != target_columns[target_idx[i]].type or columns[local_idx[i]].size != target_columns[target_idx[i]].size):
                     raise ForeignKeyTypeError()
@@ -132,14 +133,14 @@ class SM_Manager():
 
     def _check_insert(self, table: Table, values: List[Union[int, str, float]]):
         table.check_fields(values)
-        table.check_primary_key(values)
-        for each in table.get_fk():
-            target_table = self._tables[each["target_table_name"]]
-            fk_pairs: List[tuple] = each["foreign_key_pairs"]
-            local_idx, target_idx = zip(
-                *[fk_pairs[i] for i in range(len(each["foreign_key_pairs"]))])
-            local_values = [values[i] for i in local_idx]
-            target_table.check_foreign_key(target_idx, local_values)
+        # table.check_primary_key(values)
+        # for each in table.get_fk():
+        #     target_table = self._tables[each["target_table_name"]]
+        #     fk_pairs: List[tuple] = each["foreign_key_pairs"]
+        #     local_idx, target_idx = zip(
+        #         *[fk_pairs[i] for i in range(len(each["foreign_key_pairs"]))])
+        #     local_values = [values[i] for i in local_idx]
+        #     target_table.check_foreign_key(target_idx, local_values)
 
     @require_using_db
     def insert(self, rel_name: str, values: List[List[Union[int, float, str]]]):
