@@ -8,7 +8,7 @@ class InitIndexMetaError(Exception):
     '''
     
 
-# IX_RidBucket
+# rid bucket
 class BucketInsertRidError(Exception):
     ''' Raised when failed to insert a rid into a bucket.
     '''
@@ -27,6 +27,10 @@ class IndexFieldTypeError(Exception):
 
 class NodeInsertEntryError(Exception):
     ''' Raised when failed to insert a node entry.
+    '''
+    
+class NodeInsertError(Exception):
+    ''' Raised when failed to insert a value recursively.
     '''
     
 
