@@ -14,7 +14,7 @@ class IX_TreeNodeHeader:
     
     
     def __init__(self, node_type:int, parent:int, page_no:int, entry_number:int,
-        prev_sib:int, next_sib:int, child_key_number:int, first_child:int) -> None:
+        prev_sib:int, next_sib:int, first_child:int) -> None:
         ''' Init the TreeNodeHeader.
         args:
             node_type: int, in {NODE_TYPE_INTER, NODE_TYPE_LEAF}.
@@ -23,20 +23,17 @@ class IX_TreeNodeHeader:
             entry_number: int, the valid entry number in this node.
             prev_sib: int, page number of the previous sibling.
             next_sib: int, page number of the next sibling.
-            child_key_number: int, the total key number of all children of this node,
-                will be ignored if node_type == NODE_TYPE_LEAF.
             first_child: int, the page number of the first child (the smallest one),
                 will be ignored if node_type == NODE_TYPE_LEAF.
         '''
         (self.node_type, self.parent, self.page_no, self.entry_number,
-            self.prev_sib, self.next_sib, self.child_key_number, self.first_child) \
-            = node_type, parent, page_no, entry_number, \
-            prev_sib, next_sib, child_key_number, first_child
+            self.prev_sib, self.next_sib, self.first_child) \
+            = (node_type, parent, page_no, entry_number, prev_sib, next_sib, first_child)
             
             
     @staticmethod
     def size():
-        return 32
+        return 28
     
     
     @staticmethod
@@ -44,15 +41,14 @@ class IX_TreeNodeHeader:
         ''' Deserialize np.ndarray[>=IX_TreeNodeHeader.size(), uint8] to tree node header.
         '''
         buffer = data[:IX_TreeNodeHeader.size()].tobytes()
-        return IX_TreeNodeHeader(*struct.unpack(f'{cf.BYTE_ORDER}iiiiiiii', buffer))
+        return IX_TreeNodeHeader(*struct.unpack(f'{cf.BYTE_ORDER}iiiiiii', buffer))
     
 
     def serialize(self) -> np.ndarray:
         ''' Serialize tree node header to np.ndarray[IX_TreeNodeHeader.size(), uint8].
         '''
-        buffer = struct.pack(f'{cf.BYTE_ORDER}iiiiiiii',
-            self.node_type, self.parent, self.page_no, self.entry_number,
-            self.prev_sib, self.next_sib, self.child_key_number, self.first_child)
+        buffer = struct.pack(f'{cf.BYTE_ORDER}iiiiiii', self.node_type, self.parent,
+            self.page_no, self.entry_number, self.prev_sib, self.next_sib, self.first_child)
         return np.frombuffer(buffer, dtype=np.uint8)
     
 
@@ -166,7 +162,7 @@ class IX_TreeNode:
             (file_id, field_type, field_size, node_capacity)
         self.header = IX_TreeNodeHeader(node_type=node_type, parent=parent,
             page_no=page_no, entry_number=0, prev_sib=cf.INVALID,
-            next_sib=cf.INVALID, child_key_number=0, first_child=cf.INVALID)
+            next_sib=cf.INVALID, first_child=cf.INVALID)
         self.entries:List[IX_TreeNodeEntry] = list()
         self.data_modified = True
         
@@ -302,12 +298,6 @@ class IX_TreeNode:
                 entries.insert(idx, IX_TreeNodeEntry(field_type,
                     field_size, field_value, page_no, slot_no))
                 header.entry_number += 1
-                if header.parent != cf.INVALID:
-                    parent_node = IX_TreeNode.deserialize(file_id, field_type, field_size,
-                        node_capacity, pf_manager.read_page(file_id, header.parent))
-                    parent_node.header.child_key_number += 1
-                    parent_node.data_modified = True
-                    parent_node.sync()
         else:   # overflow, need to split this node
             pass
     
