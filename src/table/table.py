@@ -61,63 +61,46 @@ class Table():
             if each.name == col_name:
                 return i
     
+    def check_exist(self, idxes: List[int], values: List[Union[int, float, str]]) -> bool:
+        if len(idxes) == 0:
+            return True
+        scaner = IX_IndexScan()
+        result: List[set] = list()
+        for i in idxes:
+            val = values[i]
+            handle = self._index_handles[i]
+            scaner.open_scan(handle, val, val)
+            res = set()
+            res_gen = scaner.next()
+            for each in res_gen:
+                res.add(each)
+            scaner.close_scan()
+            result.append(res)
+        
+        # intersection all result
+        res_set = result[0]
+
+        for each in result[1:]:
+            res_set = res_set.intersection(each)
+
+        return len(res_set) != 0
+
     def check_primary_key(self, value: List[Union[int, float, str]]):
         if (len(self._pk) == 0):
             return
-        scaner = IX_IndexScan()
-        result: Dict[int, set] = {}
-        for i in self._pk:
-            val = value[i]
-            handle = self._index_handles[i]
-            scaner.open_scan(handle, val, val)
-            result_i = set()
-            res_gen = scaner.next()
-            for each in res_gen:
-                result_i.add(each)
-            scaner.close_scan()
-            result[i] = result_i
-        
-        # intersection all result
-        for each in result:
-            result_i.intersection_update(result[each])
+        result = self.check_exist(self._pk, value)
 
-        if(len(result_i) != 0):
+        if(result == True):
             raise Exception("Primary key conflict")
-    
-    def check_foreign_key(self, idx: List[int], value: List[Union[int, float, str]], is_insert: bool):
-        scaner = IX_IndexScan()
-        result: Dict[int, set] = {}
-        i = 0
-        for each in idx:
-            val = value[i]
-            handle = self._index_handles[each]
-            scaner.open_scan(handle, val, val)
-            result_each = set()
-            while(True):
-                res = scaner.next()
-                if(res is None):
-                    break
-                result_each.add(res)
-            scaner.close_scan()
-            result[each] = result_each
-            i = i + 1
-        
-        # intersection all result
-        for each in result:
-            result_each.intersection_update(result[each])
-        if(is_insert):
-            if(len(result_each) == 0):
-                raise Exception("Foreign key not found")
-        else:
-            if(len(result_each) != 0):
-                raise Exception("Foreign key exists")
 
     def check_foreign_key_on_delete(self, target_table: str, values: List[Union[int, float, str]]):
         for each in self._fk:
             if each['target_table'] == target_table:
                 idx = [pair[0] for pair in each['foreign_key_pairs']]
                 vals = [values[pair[1]] for pair in each['foreign_key_pairs']]
-                self.check_foreign_key(idx, vals, False)
+                exist = self.check_exist(idx, vals)
+                if(exist):
+                    raise Exception("Foreign key reference exists")
 
     def describe(self):
         result = list()
@@ -201,6 +184,7 @@ class Table():
 
     def __init__(self, name: str) -> None:
         self._name: str = name
+        self._index_handles = {}
         self._file_handle: RM_FileHandle = rm_manager.open_file(name)
         meta: dict = self._file_handle.read_meta()
         columns: List[Column] = list()
