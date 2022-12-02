@@ -1,0 +1,44 @@
+import os
+import struct
+import numpy as np
+
+import config as cf
+from paged_file.pf_manager import pf_manager
+from record_management.rm_rid import RM_Rid
+from index_management.ix_tree_node import IX_TreeNodeHeader, IX_TreeNode
+from index_management.ix_index_handle import IX_IndexHandle
+from index_management.ix_manager import ix_manager
+from utils.enums import CompOp
+
+
+def test_init_index():
+    file_name = os.path.join(cf.TEST_ROOT, 'test_init_index')
+    index_no = 0
+    ix_manager.create_index(file_name, index_no)
+    index_handle: IX_IndexHandle = ix_manager.open_index(file_name, index_no)
+    meta = {'field_type': cf.TYPE_INT, 'field_size': cf.SIZE_INT}
+    node_capacity = (cf.PAGE_SIZE-IX_TreeNodeHeader.size()) // (cf.SIZE_INT+8)
+    index_handle.init_meta(meta)
+    read_meta = IX_IndexHandle._desetialize_meta(
+        pf_manager.read_page(index_handle.meta_file_id, 0))
+    assert read_meta['field_type'] == cf.TYPE_INT
+    assert read_meta['field_size'] == cf.SIZE_INT
+    assert read_meta['node_capacity'] == node_capacity
+    root_node = IX_TreeNode.deserialize(index_handle.data_file_id, cf.TYPE_INT, cf.SIZE_INT,
+        node_capacity, pf_manager.read_page(index_handle.data_file_id, cf.INDEX_ROOT_PAGE))
+    header = root_node.header
+    assert header.node_type == cf.NODE_TYPE_LEAF
+    assert header.parent == cf.INVALID
+    assert header.page_no == cf.INDEX_ROOT_PAGE
+    assert header.entry_number == 0
+    assert header.prev_sib == cf.INVALID
+    assert header.next_sib == cf.INVALID
+    assert header.first_child == cf.INVALID
+    ix_manager.close_index(file_name, index_no)
+    ix_manager.remove_index(file_name, index_no)
+    print(f'Init index passed!')
+    
+
+def test():
+    print(f'-------- Test index management --------')
+    test_init_index()

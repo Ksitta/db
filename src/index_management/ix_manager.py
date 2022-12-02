@@ -30,7 +30,7 @@ class IX_Manager:
         ''' Remove the index <file_name>.<index_no>.
         '''
         pf_manager.remove_file(f'{file_name}.{index_no}{cf.INDEX_META_SUFFIX}')
-        pf_manager.remove_file(f'{file_name}.{index_no}{cf.INDEX_META_SUFFIX}')
+        pf_manager.remove_file(f'{file_name}.{index_no}{cf.INDEX_DATA_SUFFIX}')
     
     
     def open_index(self, file_name:str, index_no:int) -> IX_IndexHandle:
