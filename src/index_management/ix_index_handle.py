@@ -1,6 +1,5 @@
 import os
-import sys
-import time
+import struct
 import numpy as np
 from typing import Tuple, List, Dict, Set, Union
 
@@ -31,6 +30,27 @@ class IX_IndexHandle:
         self.meta_modified = False
         self.is_opened = True
         
+        
+    @staticmethod
+    def _serialize_meta(meta:dict) -> np.ndarray:
+        ''' Serialize meta into np.ndarray[PAGE_SIZE, uint8].
+        '''
+        data = np.ndarray(cf.PAGE_SIZE, dtype=np.uint8)
+        data[:12] = np.frombuffer(struct.pack(f'{cf.BYTE_ORDER}iii',
+            meta['field_type'], meta['field_size'], meta['node_capacity']))
+        return data
+        
+    
+    @staticmethod
+    def _desetialize_meta(data:np.ndarray) -> dict:
+        ''' Deserialize np.ndarray[PAGE_SIZE, uint8] into meta dict.
+        '''
+        (field_type, field_size, node_capacity) = \
+            struct.unpack(f'{cf.BYTE_ORDER}iii', data[:12].tobytes())
+        meta = {'field_type': field_type, 'field_size': field_size,
+            'node_capacity': node_capacity}
+        return meta
+        
     
     def init_meta(self, meta:dict) -> None:
         ''' Init the index meta info. Use ONLY when the index was just created.
@@ -48,6 +68,9 @@ class IX_IndexHandle:
         if node_capacity < 2:
             raise IndexInitMetaError(f'Node capacity = {node_capacity} is too small.')
         self.meta = {'field_type': field_type, 'field_size': field_size, 'node_capacity': node_capacity}
+        meta_page = IX_IndexHandle._serialize_meta(meta)
+        pf_manager.append_page(self.meta_file_id, meta_page)
+        self.meta_modified = False
         
     
     def read_meta(self) -> dict:
@@ -57,6 +80,10 @@ class IX_IndexHandle:
         '''
         if not self.is_opened:
             raise IndexNotOpenedError(f'Index {self.file_name}.{self.index_no} not opened.')
+        meta_page = pf_manager.read_page(self.meta_file_id, 0)
+        self.meta = IX_IndexHandle._desetialize_meta(meta_page)
+        self.meta_modified = False
+        return self.meta
         
     
     def sync_meta(self) -> None:
@@ -65,6 +92,10 @@ class IX_IndexHandle:
         '''
         if not self.is_opened:
             raise IndexNotOpenedError(f'Index {self.file_name}.{self.index_no} not opened.')
+        if not self.meta_modified: return
+        meta_page = IX_IndexHandle._serialize_meta(self.meta)
+        pf_manager.write_page(self.meta_file_id, 0, meta_page)
+        self.meta_modified = False
         
     
     def min_leaf(self) -> int:
@@ -120,6 +151,11 @@ class IX_IndexHandle:
         '''
         if not self.is_opened:
             raise IndexNotOpenedError(f'Index {self.file_name}.{self.index_no} not opened.')
+        meta = self.meta
+        leaf_page = self.search_leaf(field_value)
+        leaf_node = IX_TreeNode.deserialize(self.data_file_id, meta['field_type'], meta['field_size'],
+            meta['node_capacity'], pf_manager.read_page(self.data_file_id, leaf_page))
+        leaf_node.insert(field_value, rid.page_no, rid.slot_no)
     
     
     def remove_entry(self, field_value:Union[int, float, str], rid:RM_Rid) -> None:
