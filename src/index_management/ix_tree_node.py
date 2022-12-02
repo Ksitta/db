@@ -30,6 +30,11 @@ class IX_TreeNodeHeader:
             self.prev_sib, self.next_sib, self.first_child) \
             = (node_type, parent, page_no, entry_number, prev_sib, next_sib, first_child)
             
+    
+    def __str__(self) -> str:
+        return f'{{{self.node_type}, {self.parent}, {self.page_no}, {self.entry_number}, ' \
+            + f'{self.prev_sib}, {self.next_sib}, {self.first_child}}}'
+            
             
     @staticmethod
     def size():

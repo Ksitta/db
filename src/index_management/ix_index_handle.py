@@ -36,8 +36,8 @@ class IX_IndexHandle:
         ''' Serialize meta into np.ndarray[PAGE_SIZE, uint8].
         '''
         data = np.ndarray(cf.PAGE_SIZE, dtype=np.uint8)
-        data[:12] = np.frombuffer(struct.pack(f'{cf.BYTE_ORDER}iii',
-            meta['field_type'], meta['field_size'], meta['node_capacity']))
+        data[:12] = np.frombuffer(struct.pack(f'{cf.BYTE_ORDER}iii', meta['field_type'],
+            meta['field_size'], meta['node_capacity']), dtype=np.uint8)
         return data
         
     
@@ -67,10 +67,18 @@ class IX_IndexHandle:
         node_capacity = (cf.PAGE_SIZE - IX_TreeNodeHeader.size()) // (field_size + 8)
         if node_capacity < 2:
             raise IndexInitMetaError(f'Node capacity = {node_capacity} is too small.')
-        self.meta = {'field_type': field_type, 'field_size': field_size, 'node_capacity': node_capacity}
+        meta = {'field_type': field_type, 'field_size': field_size, 'node_capacity': node_capacity}
+        self.meta = meta
         meta_page = IX_IndexHandle._serialize_meta(meta)
         pf_manager.append_page(self.meta_file_id, meta_page)
         self.meta_modified = False
+        # create root node
+        root_page = pf_manager.append_page(self.data_file_id)
+        if root_page != cf.INDEX_ROOT_PAGE:
+            raise IndexInitMetaError(f'Root node has not been allocated on page {cf.INDEX_ROOT_PAGE}.')
+        root_node = IX_TreeNode(self.data_file_id, meta['field_type'], meta['field_size'],
+            meta['node_capacity'], cf.NODE_TYPE_LEAF, cf.INVALID, cf.INDEX_ROOT_PAGE)
+        root_node.sync()
         
     
     def read_meta(self) -> dict:
