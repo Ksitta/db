@@ -71,7 +71,7 @@ class IX_IndexHandle:
         ''' Search the min leaf node.
         return: int, the page_no of the min leaf node.
         '''
-        meta, current_page = self.meta, 0
+        meta, current_page = self.meta, cf.INDEX_ROOT_PAGE
         while True:
             current_node = IX_TreeNode.deserialize(self.data_file_id, meta['field_type'], meta['field_size'],
                 meta['node_capacity'], pf_manager.read_page(self.data_file_id, current_page))
@@ -86,7 +86,7 @@ class IX_IndexHandle:
         ''' Search the max leaf node.
         return: int, the page_no of the min leaf node.
         '''
-        meta, current_page = self.meta, 0
+        meta, current_page = self.meta, cf.INDEX_ROOT_PAGE
         while True:
             current_node = IX_TreeNode.deserialize(self.data_file_id, meta['field_type'], meta['field_size'],
                 meta['node_capacity'], pf_manager.read_page(self.data_file_id, current_page))
@@ -101,7 +101,7 @@ class IX_IndexHandle:
         ''' Search the leaf node by a field value in this index.
         return: int, the page_no of the leaf node.
         '''
-        meta, current_page = self.meta, 0
+        meta, current_page = self.meta, cf.INDEX_ROOT_PAGE
         while True:
             current_node = IX_TreeNode.deserialize(self.data_file_id, meta['field_type'], meta['field_size'],
                 meta['node_capacity'], pf_manager.read_page(self.data_file_id, current_page))

@@ -299,8 +299,77 @@ class IX_TreeNode:
                     field_size, field_value, page_no, slot_no))
                 header.entry_number += 1
         else:   # overflow, need to split this node
-            pass
-    
+            idx = self.search_child_idx(field_value)
+            entries.insert(idx, IX_TreeNodeEntry(field_type, field_size, field_value, page_no, slot_no))
+            mid_idx = (node_capacity+1) // 2
+            # alloc a split new page
+            new_page = pf_manager.append_page(file_id)
+            # first determine the entry needed to pass upward
+            (up_field_value, up_page_no, up_slot_no) = \
+                (entries[mid_idx].field_value, new_page, cf.INVALID)
+            # create a new node
+            new_node = IX_TreeNode(file_id, field_type, field_size,
+                node_capacity, header.node_type, header.parent, new_page)
+            if header.node_type == cf.NODE_TYPE_INTER:
+                new_node.header.entry_number = node_capacity // 2
+                new_node.header.first_child = entries[mid_idx].page_no
+                new_node.entries = entries[mid_idx+1:]
+            elif header.node_type == cf.NODE_TYPE_LEAF:
+                new_node.header.entry_number = node_capacity // 2 + 1
+                new_node.entries = entries[mid_idx:]
+            else: raise NodeInsertError(f'Wrong node type: {header.node_type}.')
+            # modify the current node
+            header.entry_number = mid_idx
+            entries = entries[:mid_idx]
+            # prev_sib and next_sib
+            new_node.header.prev_sib = header.page_no
+            new_node.header.next_sib = header.next_sib
+            if header.next_sib != cf.INVALID:
+                next_node = IX_TreeNode.deserialize(file_id, field_type, field_size,
+                    node_capacity, pf_manager.read_page(file_id, header.next_sib))
+                next_node.header.prev_sib = new_page
+                next_node.data_modified = True
+                next_node.sync()
+            header.next_sib = new_page
+            new_node.data_modified = True
+            new_node.sync()
+            # pass the overflowed entry upward
+            if header.parent == cf.INVALID: # root spilled, need to create a new root
+                if header.page_no != cf.INDEX_ROOT_PAGE:
+                    raise NodeInsertError(f'Root page no {header.page_no} is not {cf.INDEX_ROOT_PAGE}.')
+                # must swap the new node page with INDEX_ROOT_PAGE
+                new_page = pf_manager.append_page(file_id)
+                header.page_no = new_page
+                header.parent = cf.INDEX_ROOT_PAGE
+                if header.prev_sib != cf.INVALID:
+                    raise NodeInsertError(f'Current root has a prev sib.')
+                # set the parent of the new split node
+                new_node.header.parent = cf.INDEX_ROOT_PAGE
+                new_node.data_modified = True
+                new_node.sync()
+                if header.node_type != cf.NODE_TYPE_LEAF:
+                    for entry in entries: # change children's parent
+                        node = IX_TreeNode.deserialize(file_id, field_type, field_size,
+                            node_capacity, pf_manager.read_page(file_id, entry.page_no))
+                        node.header.parent = new_page
+                        node.data_modified = True
+                        node.sync()
+                # new root node
+                new_root = IX_TreeNode(file_id, field_type, field_size, node_capacity,
+                    cf.NODE_TYPE_INTER, cf.INVALID, cf.INDEX_ROOT_PAGE)
+                new_root.header.entry_number = 1
+                new_root.header.first_child = header.page_no
+                new_root.entries = IX_TreeNodeEntry(field_type, field_size,
+                    up_field_value, up_page_no, up_slot_no)
+                new_root.data_modified = True
+                new_root.sync()
+            else: # current node is not root, insert upward recursively
+                node = IX_TreeNode.deserialize(file_id, field_type, field_size,
+                    node_capacity, pf_manager.read_page(file_id, header.parent))
+                node.insert(up_field_value, up_page_no, up_slot_no)
+        self.data_modified = True
+        self.sync()
+
     
 if __name__ == '__main__':
     pass

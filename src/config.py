@@ -28,6 +28,7 @@ INDEX_META_SUFFIX = '.ixmeta'
 INDEX_DATA_SUFFIX = '.ixdata'
 NODE_TYPE_INTER = 0
 NODE_TYPE_LEAF = 1
+INDEX_ROOT_PAGE = 0
 
 # unit test
 TEST_ROOT = f'./test_root'
