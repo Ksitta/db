@@ -191,22 +191,6 @@ class IX_TreeNode:
         return left
         
     
-    def insert_entry(self, idx:int, field_value:Union[int, float, str], page_no:int, slot_no:int) -> None:
-        ''' Insert an entry into the tree node. Use ONLY when this node is not full.
-        args:
-            idx: int, the insert position.
-            field_value: Union[int, float, str], the field_value in node entry.
-            page_no: int, the page_no in node entry.
-            slot_no: int, the slot_no in node entry.
-        '''
-        if self.header.entry_number >= self.node_capacity:
-            raise NodeInsertEntryError(f'Node entry overflow.')
-        entry = IX_TreeNodeEntry(self.field_type, self.field_size, field_value, page_no, slot_no)
-        self.header.entry_number += 1
-        self.entries.insert(idx, entry)
-        self.data_modified = True
-        
-    
     @staticmethod
     def deserialize(file_id:int, field_type:int, field_size:int, node_capacity:int, data:np.ndarray):
         ''' Deserialize a data page into tree node.
