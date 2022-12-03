@@ -1,10 +1,15 @@
 from common.common import *
 from typing import Set
 class Printer():
-    def __init__(self, records) -> None:
+    def __init__(self, records, interval) -> None:
         self._records = records
+        self._interval = interval
 
     def display(self):
+        self.print_inner()
+        print("time: %.3f s" % self._interval)
+
+    def print_inner(self):
         if(self._records is None):
             print("SUCCESS")
             return

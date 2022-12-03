@@ -183,7 +183,7 @@ class SM_Manager():
                 res_set = res_tables[i].find_exist(res_pairs[i][0], res_pairs[i][1], each.data)
                 if(len(res_set) != 0):
                     raise ReferenceCountNotZeroError()
-            table.delete_record(each.rid)
+            table.delete_record(each)
             
 
     @require_using_db

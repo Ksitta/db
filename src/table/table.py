@@ -11,7 +11,6 @@ from index_management.ix_manager import ix_manager
 from index_management.ix_index_scan import IX_IndexScan
 from operators.conditions import Condition, AlgebraCondition
 
-
 class Table():
     def index_exist(self, column_idx: int) -> bool:
         return column_idx in self._index_handles
@@ -181,7 +180,10 @@ class Table():
         
         for each in fk:
             idxes: List[Tuple] = each['foreign_key_pairs']
+            exist_idx = ix_manager.query_index(".", name)
             for idx in idxes:
+                if(idx[0] in exist_idx):
+                    continue
                 ix_manager.create_index(name, idx[0])
                 idx_handle = ix_manager.open_index(name, idx[0])
                 idx_handle.init_meta(
@@ -266,17 +268,19 @@ class Table():
     def get_reserve_map(self):
         return self._reserve_map
 
-    def delete_record(self, rid: RM_Rid):
-        self._file_handle.remove_record(rid)
+    def delete_record(self, record: Record):
+        self._file_handle.remove_record(record.rid)
+        for each in self._index_handles:
+            self._index_handles[each].remove_entry(record.data[each], record.rid)
 
     def update_record(self, rid: RM_Rid, record: Record):
         data = self._file_handle.pack_record(record.data)
         self._file_handle.update_record(rid, data)
 
     def load_all_records(self) -> List[Record]:
-        scaner = RM_FileScan()
+        scaner: RM_FileScan = RM_FileScan()
         scaner.open_scan(self._file_handle)
-        records: list = list()
+        records: List = list()
         raw_record = scaner.next()
         for each in raw_record:
             rec = self._file_handle.unpack_record(each.data)

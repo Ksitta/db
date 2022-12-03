@@ -8,6 +8,7 @@ from sql_parser.DBVisitor import DBVisitor
 import signal
 from sm_manager.sm_manager import sm_manager
 from printer.printer import Printer
+import time
 
 def parser_command(line):
     input_stream = InputStream(line)
@@ -25,8 +26,10 @@ def parser_command(line):
     visitor = DBVisitor()
 
     try:
+        start_time = time.time()
         res = visitor.visit(tree)
-        printer = Printer(res)
+        end_time = time.time()
+        printer = Printer(res, end_time - start_time)
         printer.display()
     except Exception as e:
         print(repr(e))
