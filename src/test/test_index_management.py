@@ -1,4 +1,5 @@
 import os
+import time
 import struct
 import numpy as np
 
@@ -46,8 +47,7 @@ def test_index_insert():
     index_handle: IX_IndexHandle = ix_manager.open_index(file_name, index_no)
     meta = {'field_type': cf.TYPE_INT, 'field_size': cf.SIZE_INT}
     index_handle.init_meta(meta)
-    
-    N, M = 20, 10
+    N, M = 100, 10
     values = np.repeat(np.arange(N), M)
     np.random.shuffle(values)
     for i in range(N * M):

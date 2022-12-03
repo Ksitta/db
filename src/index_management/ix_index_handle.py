@@ -76,7 +76,8 @@ class IX_IndexHandle:
             current_node = IX_TreeNode.deserialize(self.data_file_id, meta['field_type'], meta['field_size'],
                 meta['node_capacity'], pf_manager.read_page(self.data_file_id, current_page))
             if current_node.header.node_type != cf.NODE_TYPE_INTER: break
-            current_page = current_node.entries[-1].page_no
+            entry_number = current_node.header.entry_number
+            current_page = current_node.get_entry(entry_number-1).page_no
         if current_node.header.node_type != cf.NODE_TYPE_LEAF:
             raise IndexSearchError(f'Failed to find the min leaf node.')
         return current_page
@@ -96,7 +97,7 @@ class IX_IndexHandle:
             child_idx = current_node.search_child_idx(field_value)
             if child_idx == 0:
                 current_page = current_node.header.first_child
-            else: current_page = current_node.entries[child_idx-1].page_no
+            else: current_page = current_node.get_entry(child_idx-1).page_no
         if current_node.header.node_type != cf.NODE_TYPE_LEAF:
             raise IndexSearchError(f'Failed to find the leaf node.')
         return current_page, tuple(ancestors)
