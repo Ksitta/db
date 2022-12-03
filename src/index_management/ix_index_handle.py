@@ -50,6 +50,56 @@ class IX_IndexHandle:
         meta = {'field_type': field_type, 'field_size': field_size,
             'node_capacity': node_capacity}
         return meta
+    
+
+    def min_leaf(self) -> int:
+        ''' Search the min leaf node.
+        return: int, the page_no of the min leaf node.
+        '''
+        meta, current_page = self.meta, cf.INDEX_ROOT_PAGE
+        while True:
+            current_node = IX_TreeNode.deserialize(self.data_file_id, meta['field_type'], meta['field_size'],
+                meta['node_capacity'], pf_manager.read_page(self.data_file_id, current_page))
+            if current_node.header.node_type != cf.NODE_TYPE_INTER: break
+            current_page = current_node.header.first_child
+        if current_node.header.node_type != cf.NODE_TYPE_LEAF:
+            raise IndexSearchError(f'Failed to find the min leaf node.')
+        return current_page
+    
+    
+    def max_leaf(self) -> int:
+        ''' Search the max leaf node.
+        return: int, the page_no of the min leaf node.
+        '''
+        meta, current_page = self.meta, cf.INDEX_ROOT_PAGE
+        while True:
+            current_node = IX_TreeNode.deserialize(self.data_file_id, meta['field_type'], meta['field_size'],
+                meta['node_capacity'], pf_manager.read_page(self.data_file_id, current_page))
+            if current_node.header.node_type != cf.NODE_TYPE_INTER: break
+            current_page = current_node.entries[-1].page_no
+        if current_node.header.node_type != cf.NODE_TYPE_LEAF:
+            raise IndexSearchError(f'Failed to find the min leaf node.')
+        return current_page
+        
+    
+    def search_leaf(self, field_value:Union[int, float, str]) -> Tuple[int, Tuple[int]]:
+        ''' Search the leaf node by a field value in this index.
+        return: Tuple[int, Tuple[int]], the page_no of the leaf node and its ancestors.
+        '''
+        meta, current_page = self.meta, cf.INDEX_ROOT_PAGE
+        ancestors = []
+        while True:
+            current_node = IX_TreeNode.deserialize(self.data_file_id, meta['field_type'], meta['field_size'],
+                meta['node_capacity'], pf_manager.read_page(self.data_file_id, current_page))
+            if current_node.header.node_type != cf.NODE_TYPE_INTER: break
+            ancestors.append(current_page)
+            child_idx = current_node.search_child_idx(field_value)
+            if child_idx == 0:
+                current_page = current_node.header.first_child
+            else: current_page = current_node.entries[child_idx-1].page_no
+        if current_node.header.node_type != cf.NODE_TYPE_LEAF:
+            raise IndexSearchError(f'Failed to find the leaf node.')
+        return current_page, tuple(ancestors)
         
     
     def init_meta(self, meta:dict) -> None:
@@ -105,56 +155,6 @@ class IX_IndexHandle:
         pf_manager.write_page(self.meta_file_id, 0, meta_page)
         self.meta_modified = False
         
-    
-    def min_leaf(self) -> int:
-        ''' Search the min leaf node.
-        return: int, the page_no of the min leaf node.
-        '''
-        meta, current_page = self.meta, cf.INDEX_ROOT_PAGE
-        while True:
-            current_node = IX_TreeNode.deserialize(self.data_file_id, meta['field_type'], meta['field_size'],
-                meta['node_capacity'], pf_manager.read_page(self.data_file_id, current_page))
-            if current_node.header.node_type != cf.NODE_TYPE_INTER: break
-            current_page = current_node.header.first_child
-        if current_node.header.node_type != cf.NODE_TYPE_LEAF:
-            raise IndexSearchError(f'Failed to find the min leaf node.')
-        return current_page
-    
-    
-    def max_leaf(self) -> int:
-        ''' Search the max leaf node.
-        return: int, the page_no of the min leaf node.
-        '''
-        meta, current_page = self.meta, cf.INDEX_ROOT_PAGE
-        while True:
-            current_node = IX_TreeNode.deserialize(self.data_file_id, meta['field_type'], meta['field_size'],
-                meta['node_capacity'], pf_manager.read_page(self.data_file_id, current_page))
-            if current_node.header.node_type != cf.NODE_TYPE_INTER: break
-            current_page = current_node.entries[-1].page_no
-        if current_node.header.node_type != cf.NODE_TYPE_LEAF:
-            raise IndexSearchError(f'Failed to find the min leaf node.')
-        return current_page
-        
-    
-    def search_leaf(self, field_value:Union[int, float, str]) -> Tuple[int, Tuple[int]]:
-        ''' Search the leaf node by a field value in this index.
-        return: Tuple[int, Tuple[int]], the page_no of the leaf node and its ancestors.
-        '''
-        meta, current_page = self.meta, cf.INDEX_ROOT_PAGE
-        ancestors = []
-        while True:
-            current_node = IX_TreeNode.deserialize(self.data_file_id, meta['field_type'], meta['field_size'],
-                meta['node_capacity'], pf_manager.read_page(self.data_file_id, current_page))
-            if current_node.header.node_type != cf.NODE_TYPE_INTER: break
-            ancestors.append(current_page)
-            child_idx = current_node.search_child_idx(field_value)
-            if child_idx == 0:
-                current_page = current_node.header.first_child
-            else: current_page = current_node.entries[child_idx-1].page_no
-        if current_node.header.node_type != cf.NODE_TYPE_LEAF:
-            raise IndexSearchError(f'Failed to find the leaf node.')
-        return current_page, tuple(ancestors)
-    
     
     def insert_entry(self, field_value:Union[int, float, str], rid:RM_Rid) -> None:
         ''' Insert an entry to the index.
