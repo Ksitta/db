@@ -122,12 +122,12 @@ class TableScanNode(OperatorBase):
                          for col_name in table.get_column_names()]
 
     def process(self) -> RecordList:
-        # if (len(self._inline_condition) == 0):
-        #     records: List[Record] = self._table.load_all_records()
-        # else:
-        #     records: List[Record] = self._table.load_records_with_cond(self._inline_condition)
+        if (len(self._inline_condition) == 0):
+            records: List[Record] = self._table.load_all_records()
+        else:
+            records: List[Record] = self._table.load_records_with_cond(self._inline_condition)
         
-        records: List[Record] = self._table.load_all_records()
+        # records: List[Record] = self._table.load_all_records()
         table_name = self._table.get_name()
         cols = [Col(each, table_name)
                 for each in self._table.get_column_names()]
@@ -141,12 +141,12 @@ class TableScanNode(OperatorBase):
         return RecordList(cols, results)
 
     def add_condition(self, cond: Condition):
-        # if(self._table.index_exist(cond.get_col_idx())):
-        #     self._inline_condition.append(cond)
-        # else:
-        #     self._condition.append(cond)
+        if(self._table.index_exist(cond.get_col_idx())):
+            self._inline_condition.append(cond)
+        else:
+            self._condition.append(cond)
 
-        self._condition.append(cond)
+        # self._condition.append(cond)
 
 
 class JoinNode(OperatorBase):

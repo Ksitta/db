@@ -22,6 +22,10 @@ class TableNotExistsError(Exception):
     ''' Raised when operatr on an non-existed table.
     '''
 
+class ReferenceCountNotZeroError(Exception):
+    ''' Raised when delete a table with reference count not zero.
+    '''
+
 
 class DuplicateColumnError(Exception):
     ''' Raised when create a table with duplicate columns.

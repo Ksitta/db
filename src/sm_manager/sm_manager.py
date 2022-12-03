@@ -156,6 +156,8 @@ class SM_Manager():
         if (rel_name not in self._tables):
             raise TableNotExistsError(rel_name)
         for each in records.records:
+            if(each.data[-1] != 0):
+                raise ReferenceCountNotZeroError()
             self._tables[rel_name].delete_record(each.rid)
 
     @require_using_db

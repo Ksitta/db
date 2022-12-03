@@ -11,10 +11,11 @@ from index_management.ix_manager import ix_manager
 from index_management.ix_index_scan import IX_IndexScan
 from operators.conditions import Condition, AlgebraCondition
 
+
 class Table():
     def index_exist(self, column_idx: int) -> bool:
         return column_idx in self._index_handles
-    
+
     def sync_fk_pk(self):
         info = {}
         info["primary_key_size"] = len(self._pk)
@@ -24,7 +25,7 @@ class Table():
         self._file_handle.set_primary_foreign_key()
 
     def add_pk(self, pk: List[int]):
-        if(len(self._pk) != 0):
+        if (len(self._pk) != 0):
             raise Exception("Primary key already exists")
         for each in pk:
             self.create_index(each)
@@ -39,7 +40,7 @@ class Table():
         self.sync_fk_pk()
 
     def drop_pk(self):
-        if(len(self._pk) == 0):
+        if (len(self._pk) == 0):
             raise Exception("Primary key not exists")
         self._pk = []
         self.sync_fk_pk()
@@ -60,7 +61,7 @@ class Table():
             each = self._columns[i]
             if each.name == col_name:
                 return i
-    
+
     def check_exist(self, idxes: List[int], values: List[Union[int, float, str]]) -> bool:
         if len(idxes) == 0:
             return True
@@ -76,7 +77,7 @@ class Table():
                 res.add(each)
             scaner.close_scan()
             result.append(res)
-        
+
         # intersection all result
         res_set = result[0]
 
@@ -90,7 +91,7 @@ class Table():
             return
         result = self.check_exist(self._pk, value)
 
-        if(result == True):
+        if (result == True):
             raise Exception("Primary key conflict")
 
     def check_foreign_key_on_delete(self, target_table: str, values: List[Union[int, float, str]]):
@@ -99,7 +100,7 @@ class Table():
                 idx = [pair[0] for pair in each['foreign_key_pairs']]
                 vals = [values[pair[1]] for pair in each['foreign_key_pairs']]
                 exist = self.check_exist(idx, vals)
-                if(exist):
+                if (exist):
                     raise Exception("Foreign key reference exists")
 
     def describe(self):
@@ -114,7 +115,7 @@ class Table():
             else:
                 raise Exception("Unknown type")
             result.append([each.name, tp, each.size])
-        res = Result(["name", "type","size"], result)
+        res = Result(["name", "type", "size"], result)
         return res
 
     def get_name(self) -> str:
@@ -130,7 +131,7 @@ class Table():
         fk: List[Dict] = fk
 
         meta: dict = dict()
-        meta['column_number'] = len(columns)
+        meta['column_number'] = len(columns) + 1
 
         record_size: int = 0
         meta_columns: list = list()
@@ -144,17 +145,25 @@ class Table():
             column['column_name'] = each.name
             column['column_default_en'] = each.default_val != None
             column['column_default'] = np.zeros(each.size, dtype=np.uint8)
-            if(each.default_val != None):
-                if(each.type == TYPE_INT):
-                    column['column_default'][0:each.size] = np.frombuffer(struct.pack(f'{BYTE_ORDER}i', each.default_val), dtype=np.uint8)
-                if(each.type == TYPE_FLOAT):
-                    column['column_default'][0:each.size] = np.frombuffer(struct.pack(f'{BYTE_ORDER}d', each.default_val), dtype=np.uint8)
-                if(each.type == TYPE_STR):
+            if (each.default_val != None):
+                if (each.type == TYPE_INT):
+                    column['column_default'][0:each.size] = np.frombuffer(
+                        struct.pack(f'{BYTE_ORDER}i', each.default_val), dtype=np.uint8)
+                if (each.type == TYPE_FLOAT):
+                    column['column_default'][0:each.size] = np.frombuffer(
+                        struct.pack(f'{BYTE_ORDER}d', each.default_val), dtype=np.uint8)
+                if (each.type == TYPE_STR):
                     s = bytes(each.default_val, encoding='utf-8')[:each.size]
-                    column['column_default'][0:each.size] = np.frombuffer(s, dtype=np.uint8)
+                    column['column_default'][0:each.size] = np.frombuffer(
+                        s, dtype=np.uint8)
             meta_columns.append(column)
             record_size += each.size
-        
+
+        # hidden row used to store reference count
+        meta_columns.append({'column_type': TYPE_INT, 'column_size': 4, 'column_name_length': 9,
+                            'column_name': '_ref_cnt_', 'column_default_en': False, 'column_default': np.zeros(4, dtype=np.uint8)})
+        record_size += 4
+
         meta['record_size'] = record_size
         meta['column_number'] = len(meta_columns)
         meta['columns'] = meta_columns
@@ -171,13 +180,14 @@ class Table():
             ix_manager.create_index(name, each)
 
     def create_index(self, column_idx: int):
-        if(column_idx in self._pk):
+        if (column_idx in self._pk):
             return
         ix_manager.create_index(self._name, column_idx)
-        self._index_handles[column_idx] = ix_manager.open_index(self._name, column_idx)
+        self._index_handles[column_idx] = ix_manager.open_index(
+            self._name, column_idx)
 
     def drop_index(self, column_idx: int):
-        if(self._index_handles[column_idx] == None):
+        if (self._index_handles[column_idx] == None):
             raise Exception("Index not exists")
         del self._index_handles[column_idx]
         ix_manager.destroy_index(self._name, column_idx)
@@ -189,14 +199,16 @@ class Table():
         meta: dict = self._file_handle.read_meta()
         columns: List[Column] = list()
         for each in meta['columns']:
-            columns.append(Column(each['column_name'], each['column_type'], each['column_size'], False))
-        
+            columns.append(
+                Column(each['column_name'], each['column_type'], each['column_size'], False))
+
         # metas
         self._columns = columns
-        self._pk: List[int]  = meta['primary_keys']
+        self._pk: List[int] = meta['primary_keys']
         self._fk: List[Dict] = meta['foreign_keys']
         indexs: List[int] = ix_manager.query_index(".", name)
-        self._index_handles = {i: ix_manager.open_index(name, i) for i in indexs}
+        self._index_handles = {
+            i: ix_manager.open_index(name, i) for i in indexs}
 
     def __del__(self) -> None:
         for each in self._index_handles:
@@ -205,25 +217,29 @@ class Table():
         rm_manager.close_file(self._name)
 
     def check_fields(self, fields: List[Union[int, float, str, None]]):
-        if(len(fields) != len(self._columns)):
+        if (len(fields) != len(self._columns)):
             raise Exception("Field number not match")
         for i in range(len(fields)):
             if (type(fields[i]) is int):
-                if(self._columns[i].type != TYPE_INT):
-                    raise Exception("Field type not match expected int but got {}".format())
+                if (self._columns[i].type != TYPE_INT):
+                    raise Exception(
+                        "Field type not match expected int but got {}".format())
             if (type(fields[i]) is float):
-                if(self._columns[i].type != TYPE_FLOAT):
+                if (self._columns[i].type != TYPE_FLOAT):
                     raise Exception("Field type not match")
             if (type(fields[i]) is str):
-                if(self._columns[i].type != TYPE_STR):
+                if (self._columns[i].type != TYPE_STR):
                     raise Exception("Field type not match")
             if (fields[i] is None):
-                if(self._columns[i].nullable == False):
+                if (self._columns[i].nullable == False):
                     raise Exception("Field type not match")
-                
+
     def insert_record(self, fields: List[Union[int, float, str, None]]):
+        fields.append(0)
         data: np.ndarray = self._file_handle.pack_record(fields)
-        self._file_handle.insert_record(data)
+        rid = self._file_handle.insert_record(data)
+        for each in self._index_handles:
+            self._index_handles[each].insert_entry(fields[each], rid)
 
     def delete_record(self, rid: RM_Rid):
         self._file_handle.remove_record(rid)
@@ -242,26 +258,27 @@ class Table():
             records.append(Record(rec, each.rid))
         scaner.close_scan()
         return records
-    
+
     def load_records_with_cond(self, conds: List[AlgebraCondition]):
         scanner = IX_IndexScan()
         rid_sets = []
         for each in conds:
-            scanner.open_scan(self._index_handles[each.get_col_idx()], each._operator, each._value)
+            scanner.open_scan(
+                self._index_handles[each.get_col_idx()], each._operator, each._value)
             rid_gen = scanner.next()
             rids = set()
             for each in rid_gen:
                 rids.append(each)
             rid_sets.append(rids)
             scanner.close_scan()
-        
+
         res: Set[RM_Rid] = rid_sets[0]
         for each in rid_sets[1:]:
             res = res.intersection(each)
-        
+
         records = [self._file_handle.get_record(each) for each in res]
         return records
-        
+
     def get_column_names(self) -> List[str]:
         return [i.name for i in self._columns]
 
