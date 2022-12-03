@@ -130,9 +130,10 @@ class IX_RidBucket:
     def deserialize(data:np.ndarray):
         bucket = IX_RidBucket()
         header_size = IX_RidBucketHeader.size()
+        capacity = (8*(cf.PAGE_SIZE-header_size)-7) // (8*RM_Rid.size()+1)
         bitmap_size = bucket.bitmap.size
         bucket.header = IX_RidBucketHeader.deserialize(data[:header_size])
-        bucket.bitmap = Bitmap.deserialize(data[header_size:header_size+bitmap_size])
+        bucket.bitmap = Bitmap.deserialize(capacity, data[header_size:header_size+bitmap_size])
         bucket.data[:] = data[:cf.PAGE_SIZE]
         return bucket
         

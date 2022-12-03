@@ -128,7 +128,8 @@ class IX_TreeNodeEntry:
             buffer = bytes(field_value[:field_size].ljust(field_size, '\0'))
             data[:field_size] = np.frombuffer(buffer, dtype=np.uint8)
         else: raise IndexFieldTypeError(f'Field type {field_type} is invalid.')
-        data[field_size:field_size+8] = struct.pack(f'{BYTE_ORDER}ii', self.page_no, self.slot_no)
+        data[field_size:field_size+8] = np.frombuffer(
+            struct.pack(f'{BYTE_ORDER}ii', self.page_no, self.slot_no), dtype=np.uint8)
         return data
     
     
@@ -170,6 +171,20 @@ class IX_TreeNode:
             next_sib=cf.INVALID, first_child=cf.INVALID)
         self.entries:List[IX_TreeNodeEntry] = list()
         self.data_modified = True
+        
+    
+    def __str__(self) -> str:
+        header = self.header
+        entries = self.entries
+        to_str = lambda x : str(x.field_value)
+        res = f'{{({header.page_no}, {header.parent}), [{", ".join(map(to_str, entries))}]}}'
+        if header.node_type == cf.NODE_TYPE_INTER: return res
+        for entry in entries:
+            rids = f'{entry.field_value}: '
+            for rid in entry.get_all_rids(self.file_id):
+                rids += f'({rid.page_no},{rid.slot_no}), '
+            res += f'\n{rids}'
+        return res
         
     
     def search_child_idx(self, field_value:Union[int, float, str]) -> int:
@@ -236,7 +251,21 @@ class IX_TreeNode:
         self.data_modified = False
         
     
-    def insert(self, field_value:Union[int, float, str], page_no:int, slot_no:int) -> None:
+    def print_subtree(self, depth=0):
+        lines = self.__str__().split('\n')
+        print(f' '*4*depth, end=''); print(lines[0])
+        # if len(lines) > 0:
+        #     for line in lines[1:]:
+        #         print(f' '*4*(depth+1), end=''); print(line)
+        if self.header.node_type == cf.NODE_TYPE_INTER:
+            for page_no in [self.header.first_child] + [x.page_no for x in self.entries]:
+                node = IX_TreeNode.deserialize(self.file_id,
+                    self.field_type, self.field_size, self.node_capacity,
+                    pf_manager.read_page(self.file_id, page_no))
+                node.print_subtree(depth+1)
+        
+    
+    def insert(self, field_value:Union[int, float, str], page_no:int, slot_no:int) -> Tuple[int, int]:
         ''' Insert an entry to this node recursively.
             Should use different strategies based on the node type.
             Should deal with entry overflow and split the node recursively.
@@ -248,15 +277,17 @@ class IX_TreeNode:
                 If this node is leaf node, page_no means the rid.page_no.
             slot_no: int, if this node is internal node, slot_no must be INVALID.
                 If this node is leaf node, slot_no means the rid.slot_no.
+        return: Tuple[int, int], the new left and right parent page_no.
         '''
         (file_id, field_type, field_size, node_capacity) = \
             (self.file_id, self.field_type, self.field_size, self.node_capacity)
         header = self.header
         entries = self.entries
-        if header.entry_number < node_capacity: # no need to split
-            idx = self.search_child_idx(field_value)
-            if idx > 0 and entries[idx-1].field_value == field_value:
-                # encountered a reapeated entry in a leaf node
+        new_parents = (header.page_no, header.page_no)
+        idx = self.search_child_idx(field_value)
+        repeated = (idx > 0 and entries[idx-1].field_value == field_value)
+        if header.entry_number < node_capacity or repeated: # no need to split
+            if repeated: # encountered a reapeated entry in a leaf node
                 if header.node_type != cf.NODE_TYPE_LEAF:
                     raise NodeInsertError(f'Encounter a repeated entry in a non-leaf node.')
                 entry = entries[idx-1]
@@ -288,8 +319,8 @@ class IX_TreeNode:
                     field_size, field_value, page_no, slot_no))
                 header.entry_number += 1
         else:   # overflow, need to split this node
-            idx = self.search_child_idx(field_value)
-            entries.insert(idx, IX_TreeNodeEntry(field_type, field_size, field_value, page_no, slot_no))
+            insert_idx = self.search_child_idx(field_value)
+            entries.insert(insert_idx, IX_TreeNodeEntry(field_type, field_size, field_value, page_no, slot_no))
             mid_idx = (node_capacity+1) // 2
             # alloc a split new page
             new_page = pf_manager.append_page(file_id)
@@ -309,7 +340,8 @@ class IX_TreeNode:
             else: raise NodeInsertError(f'Wrong node type: {header.node_type}.')
             # modify the current node
             header.entry_number = mid_idx
-            entries = entries[:mid_idx]
+            self.entries = entries[:mid_idx]
+            entries = self.entries
             # prev_sib and next_sib
             new_node.header.prev_sib = header.page_no
             new_node.header.next_sib = header.next_sib
@@ -336,10 +368,10 @@ class IX_TreeNode:
                 new_node.header.parent = cf.INDEX_ROOT_PAGE
                 new_node.data_modified = True
                 new_node.sync()
-                if header.node_type != cf.NODE_TYPE_LEAF:
-                    for entry in entries: # change children's parent
+                if header.node_type != cf.NODE_TYPE_LEAF: # change children's parent
+                    for child_page in [header.first_child] + [x.page_no for x in entries]:
                         node = IX_TreeNode.deserialize(file_id, field_type, field_size,
-                            node_capacity, pf_manager.read_page(file_id, entry.page_no))
+                            node_capacity, pf_manager.read_page(file_id, child_page))
                         node.header.parent = new_page
                         node.data_modified = True
                         node.sync()
@@ -348,16 +380,27 @@ class IX_TreeNode:
                     cf.NODE_TYPE_INTER, cf.INVALID, cf.INDEX_ROOT_PAGE)
                 new_root.header.entry_number = 1
                 new_root.header.first_child = header.page_no
-                new_root.entries = IX_TreeNodeEntry(field_type, field_size,
-                    up_field_value, up_page_no, up_slot_no)
+                new_root.entries = [IX_TreeNodeEntry(field_type, field_size,
+                    up_field_value, up_page_no, up_slot_no)]
                 new_root.data_modified = True
                 new_root.sync()
             else: # current node is not root, insert upward recursively
-                node = IX_TreeNode.deserialize(file_id, field_type, field_size,
+                up_node = IX_TreeNode.deserialize(file_id, field_type, field_size,
                     node_capacity, pf_manager.read_page(file_id, header.parent))
-                node.insert(up_field_value, up_page_no, up_slot_no)
+                left_parent, right_parent = up_node.insert(up_field_value, up_page_no, up_slot_no)
+                header.parent = left_parent
+                if new_node.header.parent != right_parent:
+                    new_node.header.parent = right_parent
+                    new_node.data_modified = True
+                    new_node.sync()
+            if insert_idx < mid_idx:
+                new_parents = header.page_no, header.page_no
+            elif insert_idx > mid_idx:
+                new_parents = new_node.header.page_no, new_node.header.page_no
+            else: new_parents = header.page_no, new_node.header.page_no
         self.data_modified = True
         self.sync()
+        return new_parents
 
     
 if __name__ == '__main__':

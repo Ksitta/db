@@ -49,8 +49,8 @@ class IX_IndexScan:
         if comp_op == CompOp.NO or comp_op == CompOp.NE:
             current_page = index_handle.min_leaf()
             while True:
-                current_node = IX_TreeNode.deserialize(field_type, field_size, node_capacity,
-                    pf_manager.read_page(data_file_id, current_page))
+                current_node = IX_TreeNode.deserialize(index_handle.data_file_id, field_type,
+                    field_size, node_capacity, pf_manager.read_page(data_file_id, current_page))
                 for entry in current_node.entries:
                     if comp_op == CompOp.NE and entry.field_value == field_value: continue
                     for rid in entry.get_all_rids(data_file_id): yield rid
@@ -58,8 +58,8 @@ class IX_IndexScan:
                 if current_page == cf.INVALID: break
         elif comp_op == CompOp.EQ:
             current_page = index_handle.search_leaf(field_value)
-            current_node = IX_TreeNode.deserialize(field_type, field_size, node_capacity,
-                    pf_manager.read_page(data_file_id, current_page))
+            current_node = IX_TreeNode.deserialize(index_handle.data_file_id, field_type, field_size,
+                node_capacity, pf_manager.read_page(data_file_id, current_page))
             child_idx = current_node.search_child_idx(field_value)
             if child_idx == 0 or current_node.entries[child_idx-1].field_value != field_value:
                 return None
@@ -67,8 +67,8 @@ class IX_IndexScan:
         elif comp_op == CompOp.LT or comp_op == CompOp.LE:
             current_page = index_handle.min_leaf()
             while True:
-                current_node = IX_TreeNode.deserialize(field_type, field_size, node_capacity,
-                    pf_manager.read_page(data_file_id, current_page))
+                current_node = IX_TreeNode.deserialize(index_handle.data_file_id, field_type,
+                    field_size, node_capacity, pf_manager.read_page(data_file_id, current_page))
                 for entry in current_node.entries:
                     if entry.field_value > field_value: return None
                     if comp_op == CompOp.LT and entry.field_value == field_value: return None
@@ -78,8 +78,8 @@ class IX_IndexScan:
         elif comp_op == CompOp.GT or comp_op == CompOp.GE:
             current_page = index_handle.search_leaf(field_value)
             while True:
-                current_node = IX_TreeNode.deserialize(field_type, field_size, node_capacity,
-                    pf_manager.read_page(data_file_id, current_page))
+                current_node = IX_TreeNode.deserialize(index_handle.data_file_id, field_type,
+                    field_size, node_capacity, pf_manager.read_page(data_file_id, current_page))
                 for entry in current_node.entries:
                     if entry.field_value < field_value: continue
                     if comp_op == CompOp.GT and entry.field_value == field_value: continue
