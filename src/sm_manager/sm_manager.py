@@ -51,6 +51,11 @@ class SM_Manager():
                 if (file.endswith(TABLE_DATA_SUFFIX)):
                     self._tables[file[:-len(TABLE_DATA_SUFFIX)]
                                  ] = Table(file[:-len(TABLE_DATA_SUFFIX)])
+            for table in self._tables.values():
+                fk = table.get_fk()
+                for each in fk:
+                    target_table = self._tables[each["target_table_name"]]
+                    target_table.add_reserver_map(table.get_name(), each)
 
     def create_db(self, db_name: str):
         if (db_name in self._db_names):
@@ -96,7 +101,7 @@ class SM_Manager():
             raise DuplicatePrimaryKeyError()
         for fk_dict in fk:
             local_idx = [names.index(each) for each in fk_dict["local_idents"]]
-            target_table = sm_manager.get_table(fk_dict["target_table_name"])
+            target_table = self.get_table(fk_dict["target_table_name"])
             tnames = target_table.get_column_names()
             target_idx = [tnames.index(each)
                           for each in fk_dict["target_idents"]]
@@ -112,6 +117,13 @@ class SM_Manager():
             fk_dict.pop("local_idents")
             fk_dict.pop("target_idents")
         Table.create_table(rel_name, columns, pk_idx, fk)
+        for each in fk:
+            target_table = self.get_table(each["target_table_name"])
+            records = target_table.load_all_records()
+            fk_pairs: List[Tuple] = each["foreign_key_pairs"]
+            for pair in fk_pairs:
+                target_table.create_index(pair[1] ,records)
+            target_table.add_reserver_map(rel_name, each)
         self._tables[rel_name] = Table(rel_name)
 
     @require_using_db
@@ -136,13 +148,14 @@ class SM_Manager():
     def _check_insert(self, table: Table, values: List[Union[int, str, float]]):
         table.check_fields(values)
         table.check_primary_key(values)
-        # for each in table.get_fk():
-        #     target_table = self._tables[each["target_table_name"]]
-        #     fk_pairs: List[tuple] = each["foreign_key_pairs"]
-        #     local_idx, target_idx = zip(
-        #         *[fk_pairs[i] for i in range(len(each["foreign_key_pairs"]))])
-        #     local_values = [values[i] for i in local_idx]
-        #     target_table.check_foreign_key(target_idx, local_values)
+        for each in table.get_fk():
+            target_table = self._tables[each["target_table_name"]]
+            fk_pairs: List[tuple] = each["foreign_key_pairs"]
+            local_idx, target_idx = zip(
+                *[fk_pairs[i] for i in range(len(each["foreign_key_pairs"]))])
+            res = target_table.find_exist(target_idx, local_idx, values)
+            if(len(res) == 0):
+                raise ForeignKeyNotExistsError()
 
     @require_using_db
     def insert(self, rel_name: str, values: List[List[Union[int, float, str]]]):
@@ -150,20 +163,7 @@ class SM_Manager():
             raise TableNotExistsError(rel_name)
         table = self._tables[rel_name]
         for each in values:
-            each.append(0)
             self._check_insert(table, each)
-            for fk in table.get_fk():
-                target_table = self._tables[fk["target_table_name"]]
-                fk_pairs: List[tuple] = fk["foreign_key_pairs"]
-                local_idx, target_idx = zip(
-                    *[fk_pairs[i] for i in range(len(fk["foreign_key_pairs"]))])
-                target_table.check_ref_exist(target_idx, local_idx, each)
-            for fk in table.get_fk():
-                target_table = self._tables[fk["target_table_name"]]
-                fk_pairs: List[tuple] = fk["foreign_key_pairs"]
-                local_idx, target_idx = zip(
-                    *[fk_pairs[i] for i in range(len(fk["foreign_key_pairs"]))])
-                target_table.update_ref_cnt(target_idx, local_idx, each, 1)
             table.insert_record(each)
 
     @require_using_db
@@ -171,16 +171,18 @@ class SM_Manager():
         if (rel_name not in self._tables):
             raise TableNotExistsError(rel_name)
         table = self._tables[rel_name]
+        res_map = table.get_reserve_map()
+        res_tables = [self._tables[each[0]] for each in res_map]
+        res_pairs = [each[1] for each in res_map]
+        res_pairs = [zip(*each) for each in res_pairs]
+        res_len = len(res_tables)
         for each in records.records:
-            if(each.data[-1] != 0):
-                raise ReferenceCountNotZeroError()
+            for i in range(res_len):
+                res_set = res_tables[i].find_exist(res_pairs[i][0], res_pairs[i][1], each)
+                if(len(res_set) != 0):
+                    raise ReferenceCountNotZeroError()
             table.delete_record(each.rid)
-            for fk in table.get_fk():
-                target_table = self._tables[fk["target_table_name"]]
-                fk_pairs: List[tuple] = fk["foreign_key_pairs"]
-                local_idx, target_idx = zip(
-                    *[fk_pairs[i] for i in range(len(fk["foreign_key_pairs"]))])
-                target_table.update_ref_cnt(target_idx, local_idx, each, 1)
+            
 
     @require_using_db
     def update(self, rel_name: str, records: RecordList, set_clause: List):
@@ -192,21 +194,7 @@ class SM_Manager():
             idx = table.get_column_idx(each[0])
             up_list.append((idx, each[1]))
         for each in records.records:
-            if(each.data[-1] != 0):
-                raise ReferenceCountNotZeroError()
             self._check_insert(table, each)
-            for fk in table.get_fk():
-                target_table = self._tables[fk["target_table_name"]]
-                fk_pairs: List[tuple] = fk["foreign_key_pairs"]
-                local_idx, target_idx = zip(
-                    *[fk_pairs[i] for i in range(len(fk["foreign_key_pairs"]))])
-                target_table.check_ref_exist(target_idx, local_idx, each)
-            for fk in table.get_fk():
-                target_table = self._tables[fk["target_table_name"]]
-                fk_pairs: List[tuple] = fk["foreign_key_pairs"]
-                local_idx, target_idx = zip(
-                    *[fk_pairs[i] for i in range(len(fk["foreign_key_pairs"]))])
-                target_table.update_ref_cnt(target_idx, local_idx, each, 1)
             for idx, val in up_list:
                 each.data[idx] = val
             table.update_record(each.rid, each)

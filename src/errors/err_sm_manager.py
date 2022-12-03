@@ -27,6 +27,11 @@ class ReferenceCountNotZeroError(Exception):
     '''
 
 
+class ForeignKeyNotExistsError(Exception):
+    ''' Raised when insert a record with foreign key not exists.
+    '''
+
+
 class DuplicateColumnError(Exception):
     ''' Raised when create a table with duplicate columns.
     '''

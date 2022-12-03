@@ -3,7 +3,7 @@ from record_management.rm_file_handle import RM_FileHandle
 from record_management.rm_file_scan import RM_FileScan
 from record_management.rm_rid import RM_Rid
 import numpy as np
-from typing import List, Union, Dict, Set
+from typing import List, Union, Dict, Set, Tuple
 from config import *
 from common.common import *
 import struct
@@ -101,21 +101,6 @@ class Table():
         if (len(result) != 0):
             raise Exception("Primary key conflict")
 
-    def check_ref_exist(self, idxes: List[int], value_idxes: List[int], values: List[Union[int, float, str]]):
-        res = self.find_exist(idxes, value_idxes, values)
-        records = [self._file_handle.get_record(each) for each in res]
-        if(len(records) == 0):
-            raise Exception("No record found")
-
-    def update_ref_cnt(self, idxes: List[int], value_idxes: List[int], values: List[Union[int, float, str]], cnt: int):
-        res = self.find_exist(idxes, value_idxes, values)
-        records = [self._file_handle.get_record(each) for each in res]
-        if(len(records) == 0):
-            raise Exception("No record found")
-        for each in records:
-            each[-1] += cnt
-            self._file_handle.update_record(each)
-
     def describe(self):
         result = list()
         for i in range(len(self._columns)):
@@ -128,8 +113,6 @@ class Table():
                 tp = 'STRING'
             else:
                 raise Exception("Unknown type")
-            if each.name[0] == '_' and each.name[-1] == '_':
-                continue
             key_type = ""
             if i in self._pk:
                 key_type = "PRI"
@@ -175,11 +158,6 @@ class Table():
                         s, dtype=np.uint8)
             meta_columns.append(column)
             record_size += each.size
-
-        # hidden row used to store reference count
-        meta_columns.append({'column_type': TYPE_INT, 'column_size': 4, 'column_name_length': 9,
-                            'column_name': '_ref_cnt_', 'column_default_en': False, 'column_default': np.zeros(4, dtype=np.uint8)})
-        record_size += 4
 
         meta['record_size'] = record_size
         meta['column_number'] = len(meta_columns)
@@ -240,6 +218,7 @@ class Table():
             i: ix_manager.open_index(name, i) for i in indexs}
         for each in self._index_handles.values():
             each.read_meta()
+        self._reserve_map: List[Tuple[str, List[Tuple]]] = []
 
     def __del__(self) -> None:
         for each in self._index_handles:
@@ -270,6 +249,12 @@ class Table():
         rid = self._file_handle.insert_record(data)
         for each in self._index_handles:
             self._index_handles[each].insert_entry(fields[each], rid)
+
+    def add_reserver_map(self, name: str, fk: Dict):
+        self._reserve_map.append((name, fk["foreign_key_pairs"]))
+
+    def get_reserve_map(self):
+        return self._reserve_map
 
     def delete_record(self, rid: RM_Rid):
         self._file_handle.remove_record(rid)
