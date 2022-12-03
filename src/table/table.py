@@ -35,7 +35,7 @@ class Table():
         if(len(set(objects)) != len(objects)):
             raise Exception("Primary key conflict")
         for each in pk:
-            self.create_index(each)
+            self.create_index(each, records)
         self._pk = pk
         self.sync_fk_pk()
 
@@ -201,7 +201,7 @@ class Table():
             idx_handle.sync_meta()
             ix_manager.close_index(name, each)
 
-    def create_index(self, column_idx: int):
+    def create_index(self, column_idx: int, records: List[Record]):
         if (column_idx in self._index_handles):
             return
         ix_manager.create_index(self._name, column_idx)
@@ -211,6 +211,8 @@ class Table():
             {'field_type': self._columns[column_idx].type, 'field_size': self._columns[column_idx].size})
         idx_handle.sync_meta()
         self._index_handles[column_idx] = idx_handle
+        for each in records:
+            idx_handle.insert_entry(each.data[column_idx], each.rid)
 
     def drop_index(self, column_idx: int):
         if (self._index_handles[column_idx] == None):

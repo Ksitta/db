@@ -160,7 +160,7 @@ class DBVisitor(SQLVisitor):
         sm_manager.drop_index(table_name, idents)
 
     def visitAlter_table_drop_pk(self, ctx: SQLParser.Alter_table_drop_pkContext):
-        table_name = str(ctx.Identifier())
+        table_name = str(ctx.Identifier(0))
         sm_manager.drop_pk(table_name)
 
     def visitAlter_table_drop_foreign_key(self, ctx: SQLParser.Alter_table_drop_foreign_keyContext):

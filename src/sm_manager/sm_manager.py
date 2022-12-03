@@ -216,8 +216,9 @@ class SM_Manager():
         if (rel_name not in self._tables):
             raise TableNotExistsError(rel_name)
         table = self._tables[rel_name]
+        records = table.load_all_records()
         for each in idents:
-            table.create_index(table.get_column_idx(each))
+            table.create_index(table.get_column_idx(each), records)
 
     @require_using_db
     def drop_index(self, rel_name: str, idents: List[str]):
@@ -267,11 +268,11 @@ class SM_Manager():
         table.add_pk(pk_idx)
 
     @require_using_db
-    def drop_pk(self, rel_name: str, pk_name: str):
+    def drop_pk(self, rel_name: str):
         if (rel_name not in self._tables):
             raise TableNotExistsError(rel_name)
         table = self._tables[rel_name]
-        raise NotImplementedError()
+        table.drop_pk()
 
     @require_using_db
     def add_fk(self, rel_name: str, fk: Dict):
