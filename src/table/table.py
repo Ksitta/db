@@ -19,14 +19,21 @@ class Table():
     def sync_fk_pk(self):
         info = {}
         info["primary_key_size"] = len(self._pk)
-        info["primary_key"] = self._pk
-        info["foreign_key_size"] = len(self._fk)
-        info["foreign_key"] = self._fk
-        self._file_handle.set_primary_foreign_key()
+        info["primary_keys"] = self._pk
+        info["foreign_key_number"] = len(self._fk)
+        info["foreign_keys"] = self._fk
+        self._file_handle.set_primary_foreign_key(info)
 
     def add_pk(self, pk: List[int]):
         if (len(self._pk) != 0):
             raise Exception("Primary key already exists")
+        records = self.load_all_records()
+        cols = []
+        for col_idx in pk:
+            cols.append([each.data[col_idx] for each in records])
+        objects = list(zip(*cols))
+        if(len(set(objects)) != len(objects)):
+            raise Exception("Primary key conflict")
         for each in pk:
             self.create_index(each)
         self._pk = pk
@@ -62,15 +69,15 @@ class Table():
             if each.name == col_name:
                 return i
 
-    def check_exist(self, idxes: List[int], values: List[Union[int, float, str]]) -> bool:
+    def find_exist(self, idxes: List[int], value_idxes: List[int], values: List[Union[int, float, str]]) -> Set[RM_Rid]:
         if len(idxes) == 0:
-            return True
+            return set()
         scaner = IX_IndexScan()
         result: List[set] = list()
-        for i in idxes:
-            val = values[i]
-            handle = self._index_handles[i]
-            scaner.open_scan(handle, val, val)
+        for i in range(len(idxes)):
+            val = values[value_idxes[i]]
+            handle = self._index_handles[idxes[i]]
+            scaner.open_scan(handle, CompOp.EQ, val)
             res = set()
             res_gen = scaner.next()
             for each in res_gen:
@@ -84,28 +91,35 @@ class Table():
         for each in result[1:]:
             res_set = res_set.intersection(each)
 
-        return len(res_set) != 0
+        return res_set
 
     def check_primary_key(self, value: List[Union[int, float, str]]):
         if (len(self._pk) == 0):
             return
-        result = self.check_exist(self._pk, value)
+        result = self.find_exist(self._pk, self._pk, value)
 
-        if (result == True):
+        if (len(result) != 0):
             raise Exception("Primary key conflict")
 
-    def check_foreign_key_on_delete(self, target_table: str, values: List[Union[int, float, str]]):
-        for each in self._fk:
-            if each['target_table'] == target_table:
-                idx = [pair[0] for pair in each['foreign_key_pairs']]
-                vals = [values[pair[1]] for pair in each['foreign_key_pairs']]
-                exist = self.check_exist(idx, vals)
-                if (exist):
-                    raise Exception("Foreign key reference exists")
+    def check_ref_exist(self, idxes: List[int], value_idxes: List[int], values: List[Union[int, float, str]]):
+        res = self.find_exist(idxes, value_idxes, values)
+        records = [self._file_handle.get_record(each) for each in res]
+        if(len(records) == 0):
+            raise Exception("No record found")
+
+    def update_ref_cnt(self, idxes: List[int], value_idxes: List[int], values: List[Union[int, float, str]], cnt: int):
+        res = self.find_exist(idxes, value_idxes, values)
+        records = [self._file_handle.get_record(each) for each in res]
+        if(len(records) == 0):
+            raise Exception("No record found")
+        for each in records:
+            each[-1] += cnt
+            self._file_handle.update_record(each)
 
     def describe(self):
         result = list()
-        for each in self._columns:
+        for i in range(len(self._columns)):
+            each = self._columns[i]
             if each.type == TYPE_INT:
                 tp = 'INT'
             elif each.type == TYPE_FLOAT:
@@ -114,8 +128,13 @@ class Table():
                 tp = 'STRING'
             else:
                 raise Exception("Unknown type")
-            result.append([each.name, tp, each.size])
-        res = Result(["name", "type", "size"], result)
+            if each.name[0] == '_' and each.name[-1] == '_':
+                continue
+            key_type = ""
+            if i in self._pk:
+                key_type = "PRI"
+            result.append([each.name, tp, each.size, key_type])
+        res = Result(["Name", "Type", "Size", "Key"], result)
         return res
 
     def get_name(self) -> str:
@@ -127,8 +146,6 @@ class Table():
 
         file_handle: RM_FileHandle = rm_manager.open_file(name)
         columns: List[Column] = columns
-        pk: List[int] = pk
-        fk: List[Dict] = fk
 
         meta: dict = dict()
         meta['column_number'] = len(columns) + 1
@@ -178,19 +195,29 @@ class Table():
         rm_manager.close_file(name)
         for each in pk:
             ix_manager.create_index(name, each)
+            idx_handle = ix_manager.open_index(name, each)
+            idx_handle.init_meta(
+                {'field_type': columns[each].type, 'field_size': columns[each].size})
+            idx_handle.sync_meta()
+            ix_manager.close_index(name, each)
 
     def create_index(self, column_idx: int):
-        if (column_idx in self._pk):
+        if (column_idx in self._index_handles):
             return
         ix_manager.create_index(self._name, column_idx)
-        self._index_handles[column_idx] = ix_manager.open_index(
+        idx_handle = ix_manager.open_index(
             self._name, column_idx)
+        idx_handle.init_meta(
+            {'field_type': self._columns[column_idx].type, 'field_size': self._columns[column_idx].size})
+        idx_handle.sync_meta()
+        self._index_handles[column_idx] = idx_handle
 
     def drop_index(self, column_idx: int):
         if (self._index_handles[column_idx] == None):
             raise Exception("Index not exists")
+        ix_manager.close_index(self._name, column_idx)
         del self._index_handles[column_idx]
-        ix_manager.destroy_index(self._name, column_idx)
+        ix_manager.remove_index(self._name, column_idx)
 
     def __init__(self, name: str) -> None:
         self._name: str = name
@@ -209,6 +236,8 @@ class Table():
         indexs: List[int] = ix_manager.query_index(".", name)
         self._index_handles = {
             i: ix_manager.open_index(name, i) for i in indexs}
+        for each in self._index_handles.values():
+            each.read_meta()
 
     def __del__(self) -> None:
         for each in self._index_handles:
@@ -235,7 +264,6 @@ class Table():
                     raise Exception("Field type not match")
 
     def insert_record(self, fields: List[Union[int, float, str, None]]):
-        fields.append(0)
         data: np.ndarray = self._file_handle.pack_record(fields)
         rid = self._file_handle.insert_record(data)
         for each in self._index_handles:
@@ -248,7 +276,7 @@ class Table():
         data = self._file_handle.pack_record(record.data)
         self._file_handle.update_record(rid, data)
 
-    def load_all_records(self) -> List[List[Union[int, float, str]]]:
+    def load_all_records(self) -> List[Record]:
         scaner = RM_FileScan()
         scaner.open_scan(self._file_handle)
         records: list = list()
@@ -259,7 +287,7 @@ class Table():
         scaner.close_scan()
         return records
 
-    def load_records_with_cond(self, conds: List[AlgebraCondition]):
+    def load_records_with_cond(self, conds: List[AlgebraCondition]) -> List[Record]:
         scanner = IX_IndexScan()
         rid_sets = []
         for each in conds:
@@ -268,7 +296,7 @@ class Table():
             rid_gen = scanner.next()
             rids = set()
             for each in rid_gen:
-                rids.append(each)
+                rids.add(each)
             rid_sets.append(rids)
             scanner.close_scan()
 
@@ -276,7 +304,8 @@ class Table():
         for each in rid_sets[1:]:
             res = res.intersection(each)
 
-        records = [self._file_handle.get_record(each) for each in res]
+        rm_records = [self._file_handle.get_record(each) for each in res]
+        records = [Record(self._file_handle.unpack_record(each.data), each.rid) for each in rm_records]
         return records
 
     def get_column_names(self) -> List[str]:
@@ -284,3 +313,8 @@ class Table():
 
     def get_columns(self) -> List[Column]:
         return self._columns
+
+    def drop(self):
+        raw_keys = [each for each in self._index_handles]
+        for each in raw_keys:
+            self.drop_index(each)

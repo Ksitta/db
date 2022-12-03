@@ -128,12 +128,14 @@ class SM_Manager():
             raise NoUsingDatabaseError((f'No database is opened'))
         if (rel_name not in self._tables):
             raise TableNotExistsError(rel_name)
-        self._tables.remove(rel_name)
+        table = self._tables[rel_name]
+        table.drop()
+        self._tables.pop(rel_name)
         rm_manager.remove_file(rel_name)
 
     def _check_insert(self, table: Table, values: List[Union[int, str, float]]):
         table.check_fields(values)
-        # table.check_primary_key(values)
+        table.check_primary_key(values)
         # for each in table.get_fk():
         #     target_table = self._tables[each["target_table_name"]]
         #     fk_pairs: List[tuple] = each["foreign_key_pairs"]
@@ -148,17 +150,37 @@ class SM_Manager():
             raise TableNotExistsError(rel_name)
         table = self._tables[rel_name]
         for each in values:
+            each.append(0)
             self._check_insert(table, each)
+            for fk in table.get_fk():
+                target_table = self._tables[fk["target_table_name"]]
+                fk_pairs: List[tuple] = fk["foreign_key_pairs"]
+                local_idx, target_idx = zip(
+                    *[fk_pairs[i] for i in range(len(fk["foreign_key_pairs"]))])
+                target_table.check_ref_exist(target_idx, local_idx, each)
+            for fk in table.get_fk():
+                target_table = self._tables[fk["target_table_name"]]
+                fk_pairs: List[tuple] = fk["foreign_key_pairs"]
+                local_idx, target_idx = zip(
+                    *[fk_pairs[i] for i in range(len(fk["foreign_key_pairs"]))])
+                target_table.update_ref_cnt(target_idx, local_idx, each, 1)
             table.insert_record(each)
 
     @require_using_db
     def delete(self, rel_name: str, records: RecordList):
         if (rel_name not in self._tables):
             raise TableNotExistsError(rel_name)
+        table = self._tables[rel_name]
         for each in records.records:
             if(each.data[-1] != 0):
                 raise ReferenceCountNotZeroError()
-            self._tables[rel_name].delete_record(each.rid)
+            table.delete_record(each.rid)
+            for fk in table.get_fk():
+                target_table = self._tables[fk["target_table_name"]]
+                fk_pairs: List[tuple] = fk["foreign_key_pairs"]
+                local_idx, target_idx = zip(
+                    *[fk_pairs[i] for i in range(len(fk["foreign_key_pairs"]))])
+                target_table.update_ref_cnt(target_idx, local_idx, each, 1)
 
     @require_using_db
     def update(self, rel_name: str, records: RecordList, set_clause: List):
@@ -170,6 +192,21 @@ class SM_Manager():
             idx = table.get_column_idx(each[0])
             up_list.append((idx, each[1]))
         for each in records.records:
+            if(each.data[-1] != 0):
+                raise ReferenceCountNotZeroError()
+            self._check_insert(table, each)
+            for fk in table.get_fk():
+                target_table = self._tables[fk["target_table_name"]]
+                fk_pairs: List[tuple] = fk["foreign_key_pairs"]
+                local_idx, target_idx = zip(
+                    *[fk_pairs[i] for i in range(len(fk["foreign_key_pairs"]))])
+                target_table.check_ref_exist(target_idx, local_idx, each)
+            for fk in table.get_fk():
+                target_table = self._tables[fk["target_table_name"]]
+                fk_pairs: List[tuple] = fk["foreign_key_pairs"]
+                local_idx, target_idx = zip(
+                    *[fk_pairs[i] for i in range(len(fk["foreign_key_pairs"]))])
+                target_table.update_ref_cnt(target_idx, local_idx, each, 1)
             for idx, val in up_list:
                 each.data[idx] = val
             table.update_record(each.rid, each)
