@@ -77,7 +77,7 @@ class IX_IndexHandle:
         if root_page != cf.INDEX_ROOT_PAGE:
             raise IndexInitMetaError(f'Root node has not been allocated on page {cf.INDEX_ROOT_PAGE}.')
         root_node = IX_TreeNode(self.data_file_id, meta['field_type'], meta['field_size'],
-            meta['node_capacity'], cf.NODE_TYPE_LEAF, cf.INVALID, cf.INDEX_ROOT_PAGE)
+            meta['node_capacity'], cf.NODE_TYPE_LEAF, cf.INDEX_ROOT_PAGE)
         root_node.sync()
         
     
@@ -136,22 +136,24 @@ class IX_IndexHandle:
         return current_page
         
     
-    def search_leaf(self, field_value:Union[int, float, str]) -> int:
+    def search_leaf(self, field_value:Union[int, float, str]) -> Tuple[int, Tuple[int]]:
         ''' Search the leaf node by a field value in this index.
-        return: int, the page_no of the leaf node.
+        return: Tuple[int, Tuple[int]], the page_no of the leaf node and its ancestors.
         '''
         meta, current_page = self.meta, cf.INDEX_ROOT_PAGE
+        ancestors = []
         while True:
             current_node = IX_TreeNode.deserialize(self.data_file_id, meta['field_type'], meta['field_size'],
                 meta['node_capacity'], pf_manager.read_page(self.data_file_id, current_page))
             if current_node.header.node_type != cf.NODE_TYPE_INTER: break
+            ancestors.append(current_page)
             child_idx = current_node.search_child_idx(field_value)
             if child_idx == 0:
                 current_page = current_node.header.first_child
             else: current_page = current_node.entries[child_idx-1].page_no
         if current_node.header.node_type != cf.NODE_TYPE_LEAF:
             raise IndexSearchError(f'Failed to find the leaf node.')
-        return current_page
+        return current_page, tuple(ancestors)
     
     
     def insert_entry(self, field_value:Union[int, float, str], rid:RM_Rid) -> None:
@@ -160,10 +162,10 @@ class IX_IndexHandle:
         if not self.is_opened:
             raise IndexNotOpenedError(f'Index {self.file_name}.{self.index_no} not opened.')
         meta = self.meta
-        leaf_page = self.search_leaf(field_value)
+        leaf_page, ancestors = self.search_leaf(field_value)
         leaf_node = IX_TreeNode.deserialize(self.data_file_id, meta['field_type'], meta['field_size'],
             meta['node_capacity'], pf_manager.read_page(self.data_file_id, leaf_page))
-        leaf_node.insert(field_value, rid.page_no, rid.slot_no)
+        leaf_node.insert(field_value, rid.page_no, rid.slot_no, ancestors)
     
     
     def remove_entry(self, field_value:Union[int, float, str], rid:RM_Rid) -> None:
