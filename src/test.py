@@ -14,8 +14,8 @@ if __name__ == '__main__':
         raise Exception(f'Test root exist.')
     os.mkdir(cf.TEST_ROOT)
     try: # add your unit test function here
-        # test_pf.test()
-        # test_rm.test()
+        test_pf.test()
+        test_rm.test()
         test_ix.test()
     except Exception as e:
         traceback.print_exc()

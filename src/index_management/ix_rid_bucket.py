@@ -107,6 +107,23 @@ class IX_RidBucket:
         self.data_modified = True
         
     
+    def search_rid(self, page_no:int, slot_no:int) -> int:
+        ''' Search the first slot position that contains the rid.
+        return: the rid index, if not found, return INVALID.
+        '''
+        BYTE_ORDER = cf.BYTE_ORDER
+        idx = cf.INVALID
+        base_off = IX_RidBucketHeader.size() + self.bitmap.size
+        data = self.data
+        for i in self.bitmap.occupied_slots():
+            off = base_off + (i << 3)
+            page, slot = struct.unpack(f'{BYTE_ORDER}ii', data[off:off+8].tobytes())
+            if page == page_no and slot == slot_no:
+                idx = i
+                break
+        return idx
+        
+    
     def get_all_rids(self) -> List[RM_Rid]:
         ''' Return a list of all rids.
         '''

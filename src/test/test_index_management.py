@@ -63,9 +63,37 @@ def test_index_insert():
     ix_manager.close_index(file_name, index_no)
     ix_manager.remove_index(file_name, index_no)
     print(f'Index insert passed!')
+    
+
+def test_index_remove():
+    file_name = os.path.join(cf.TEST_ROOT, 'test_index_remove')
+    index_no = 0
+    ix_manager.create_index(file_name, index_no)
+    index_handle: IX_IndexHandle = ix_manager.open_index(file_name, index_no)
+    meta = {'field_type': cf.TYPE_INT, 'field_size': cf.SIZE_INT}
+    index_handle.init_meta(meta)
+    N, M = 10, 100
+    values = np.repeat(np.arange(N), M)
+    np.random.shuffle(values)
+    for i in range(N * M):
+        index_handle.insert_entry(values[i], RM_Rid(0, i))
+    for i in range((N*M)//2, N*M):
+        index_handle.remove_entry(values[i], RM_Rid(0, i))
+    scanned = np.zeros((N*M)//2, dtype=values.dtype) - 1
+    index_scan = IX_IndexScan()
+    index_scan.open_scan(index_handle, CompOp.NO)
+    for i, rid in enumerate(index_scan.next()):
+        scanned[i] = rid.slot_no
+    scanned = sorted(scanned)
+    assert np.min(np.arange((N*M) // 2) == scanned) == True
+    
+    ix_manager.close_index(file_name, index_no)
+    ix_manager.remove_index(file_name, index_no)
+    print(f'Index remove passed!')
 
 
 def test():
     print(f'-------- Test index management --------')
     test_index_init()
     test_index_insert()
+    test_index_remove()
