@@ -7,12 +7,13 @@ from paged_file.pf_manager import pf_manager
 from record_management.rm_rid import RM_Rid
 from index_management.ix_tree_node import IX_TreeNodeHeader, IX_TreeNode
 from index_management.ix_index_handle import IX_IndexHandle
+from index_management.ix_index_scan import IX_IndexScan
 from index_management.ix_manager import ix_manager
 from utils.enums import CompOp
 
 
-def test_init_index():
-    file_name = os.path.join(cf.TEST_ROOT, 'test_init_index')
+def test_index_init():
+    file_name = os.path.join(cf.TEST_ROOT, 'test_index_init')
     index_no = 0
     ix_manager.create_index(file_name, index_no)
     index_handle: IX_IndexHandle = ix_manager.open_index(file_name, index_no)
@@ -28,7 +29,6 @@ def test_init_index():
         node_capacity, pf_manager.read_page(index_handle.data_file_id, cf.INDEX_ROOT_PAGE))
     header = root_node.header
     assert header.node_type == cf.NODE_TYPE_LEAF
-    assert header.parent == cf.INVALID
     assert header.page_no == cf.INDEX_ROOT_PAGE
     assert header.entry_number == 0
     assert header.prev_sib == cf.INVALID
@@ -36,9 +36,36 @@ def test_init_index():
     assert header.first_child == cf.INVALID
     ix_manager.close_index(file_name, index_no)
     ix_manager.remove_index(file_name, index_no)
-    print(f'Init index passed!')
+    print(f'Index init passed!')
     
+
+def test_index_insert():
+    file_name = os.path.join(cf.TEST_ROOT, 'test_index_insert')
+    index_no = 0
+    ix_manager.create_index(file_name, index_no)
+    index_handle: IX_IndexHandle = ix_manager.open_index(file_name, index_no)
+    meta = {'field_type': cf.TYPE_INT, 'field_size': cf.SIZE_INT}
+    index_handle.init_meta(meta)
+    
+    N, M = 20, 10
+    values = np.repeat(np.arange(N), M)
+    np.random.shuffle(values)
+    for i in range(N * M):
+        index_handle.insert_entry(values[i], RM_Rid(0, i))
+    scanned = np.zeros_like(values) - 1
+    index_scan = IX_IndexScan()
+    index_scan.open_scan(index_handle, CompOp.NO)
+    for i, rid in enumerate(index_scan.next()):
+        scanned[i] = rid.slot_no
+    scanned = sorted(scanned)
+    assert np.min(np.arange(N*M) == scanned) == True
+    
+    ix_manager.close_index(file_name, index_no)
+    ix_manager.remove_index(file_name, index_no)
+    print(f'Index insert passed!')
+
 
 def test():
     print(f'-------- Test index management --------')
-    test_init_index()
+    test_index_init()
+    test_index_insert()
