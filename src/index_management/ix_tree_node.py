@@ -13,12 +13,11 @@ from errors.err_index_management import *
 class IX_TreeNodeHeader:
     
     
-    def __init__(self, node_type:int, parent:int, page_no:int, entry_number:int,
+    def __init__(self, node_type:int, page_no:int, entry_number:int,
         prev_sib:int, next_sib:int, first_child:int) -> None:
         ''' Init the TreeNodeHeader.
         args:
             node_type: int, in {NODE_TYPE_INTER, NODE_TYPE_LEAF}.
-            parent: int, the parent page number, INVALID for no parent (root).
             page_no: int, page number of the current tree node.
             entry_number: int, the valid entry number in this node.
             prev_sib: int, page number of the previous sibling.
@@ -26,19 +25,19 @@ class IX_TreeNodeHeader:
             first_child: int, the page number of the first child (the smallest one),
                 will be ignored if node_type == NODE_TYPE_LEAF.
         '''
-        (self.node_type, self.parent, self.page_no, self.entry_number,
+        (self.node_type, self.page_no, self.entry_number,
             self.prev_sib, self.next_sib, self.first_child) \
-            = (node_type, parent, page_no, entry_number, prev_sib, next_sib, first_child)
+            = (node_type, page_no, entry_number, prev_sib, next_sib, first_child)
             
     
     def __str__(self) -> str:
-        return f'{{{self.node_type}, {self.parent}, {self.page_no}, {self.entry_number}, ' \
+        return f'{{{self.node_type}, {self.page_no}, {self.entry_number}, ' \
             + f'{self.prev_sib}, {self.next_sib}, {self.first_child}}}'
             
             
     @staticmethod
     def size():
-        return 28
+        return 24
     
     
     @staticmethod
@@ -46,14 +45,14 @@ class IX_TreeNodeHeader:
         ''' Deserialize np.ndarray[>=IX_TreeNodeHeader.size(), uint8] to tree node header.
         '''
         buffer = data[:IX_TreeNodeHeader.size()].tobytes()
-        return IX_TreeNodeHeader(*struct.unpack(f'{cf.BYTE_ORDER}iiiiiii', buffer))
+        return IX_TreeNodeHeader(*struct.unpack(f'{cf.BYTE_ORDER}iiiiii', buffer))
     
 
     def serialize(self) -> np.ndarray:
         ''' Serialize tree node header to np.ndarray[IX_TreeNodeHeader.size(), uint8].
         '''
-        buffer = struct.pack(f'{cf.BYTE_ORDER}iiiiiii', self.node_type, self.parent,
-            self.page_no, self.entry_number, self.prev_sib, self.next_sib, self.first_child)
+        buffer = struct.pack(f'{cf.BYTE_ORDER}iiiiii', self.node_type, self.page_no,
+            self.entry_number, self.prev_sib, self.next_sib, self.first_child)
         return np.frombuffer(buffer, dtype=np.uint8)
     
 
@@ -153,7 +152,7 @@ class IX_TreeNode:
     
     
     def __init__(self, file_id:int, field_type:int, field_size:int, node_capacity:int,
-            node_type:int, parent:int, page_no:int):
+            node_type:int, page_no:int):
         ''' Init an empty tree node.
         args:
             file_id: int, the data file id of this node.
@@ -161,12 +160,11 @@ class IX_TreeNode:
             field_size: int, entry key size in bytes, not including page_no and slot_no.
             node_capacity: int, how many entries a node can store.
             node_type: int, in {NODE_TYPE_INTER, NODE_TYPE_LEAF}.
-            parent: int, the parent page number, INVALID for no parent (root).
             page_no: int, page number of the current tree node.
         '''
         (self.file_id, self.field_type, self.field_size, self.node_capacity) = \
             (file_id, field_type, field_size, node_capacity)
-        self.header = IX_TreeNodeHeader(node_type=node_type, parent=parent,
+        self.header = IX_TreeNodeHeader(node_type=node_type,
             page_no=page_no, entry_number=0, prev_sib=cf.INVALID,
             next_sib=cf.INVALID, first_child=cf.INVALID)
         self.entries:List[IX_TreeNodeEntry] = list()
@@ -177,7 +175,7 @@ class IX_TreeNode:
         header = self.header
         entries = self.entries
         to_str = lambda x : str(x.field_value)
-        res = f'{{({header.page_no}, {header.parent}), [{", ".join(map(to_str, entries))}]}}'
+        res = f'{{{header.page_no}, [{", ".join(map(to_str, entries))}]}}'
         if header.node_type == cf.NODE_TYPE_INTER: return res
         for entry in entries:
             rids = f'{entry.field_value}: '
@@ -215,7 +213,7 @@ class IX_TreeNode:
     def deserialize(file_id:int, field_type:int, field_size:int, node_capacity:int, data:np.ndarray):
         ''' Deserialize a data page into tree node.
         '''
-        node = IX_TreeNode(file_id, field_type, field_size, node_capacity, 0, 0, 0)
+        node = IX_TreeNode(file_id, field_type, field_size, node_capacity, 0, 0)
         header_size = IX_TreeNodeHeader.size()
         entry_size = field_size + 8
         header = IX_TreeNodeHeader.deserialize(data[:header_size])
@@ -254,9 +252,9 @@ class IX_TreeNode:
     def print_subtree(self, depth=0):
         lines = self.__str__().split('\n')
         print(f' '*4*depth, end=''); print(lines[0])
-        # if len(lines) > 0:
-        #     for line in lines[1:]:
-        #         print(f' '*4*(depth+1), end=''); print(line)
+        if len(lines) > 0:
+            for line in lines[1:]:
+                print(f' '*4*(depth+1), end=''); print(line)
         if self.header.node_type == cf.NODE_TYPE_INTER:
             for page_no in [self.header.first_child] + [x.page_no for x in self.entries]:
                 node = IX_TreeNode.deserialize(self.file_id,
@@ -265,7 +263,8 @@ class IX_TreeNode:
                 node.print_subtree(depth+1)
         
     
-    def insert(self, field_value:Union[int, float, str], page_no:int, slot_no:int) -> Tuple[int, int]:
+    def insert(self, field_value:Union[int, float, str], page_no:int, slot_no:int,
+        ancestors:Tuple[int]) -> None:
         ''' Insert an entry to this node recursively.
             Should use different strategies based on the node type.
             Should deal with entry overflow and split the node recursively.
@@ -277,13 +276,14 @@ class IX_TreeNode:
                 If this node is leaf node, page_no means the rid.page_no.
             slot_no: int, if this node is internal node, slot_no must be INVALID.
                 If this node is leaf node, slot_no means the rid.slot_no.
-        return: Tuple[int, int], the new left and right parent page_no.
+            ancestors: Tuple[int], the ancestors of this node from top to bottom,
+                meaning that ancestors[-1] is the parent of this node, and if
+                len(ancestors) == 0, this node must be the root.
         '''
         (file_id, field_type, field_size, node_capacity) = \
             (self.file_id, self.field_type, self.field_size, self.node_capacity)
         header = self.header
         entries = self.entries
-        new_parents = (header.page_no, header.page_no)
         idx = self.search_child_idx(field_value)
         repeated = (idx > 0 and entries[idx-1].field_value == field_value)
         if header.entry_number < node_capacity or repeated: # no need to split
@@ -329,7 +329,7 @@ class IX_TreeNode:
                 (entries[mid_idx].field_value, new_page, cf.INVALID)
             # create a new node
             new_node = IX_TreeNode(file_id, field_type, field_size,
-                node_capacity, header.node_type, header.parent, new_page)
+                node_capacity, header.node_type, new_page)
             if header.node_type == cf.NODE_TYPE_INTER:
                 new_node.header.entry_number = node_capacity // 2
                 new_node.header.first_child = entries[mid_idx].page_no
@@ -355,29 +355,17 @@ class IX_TreeNode:
             new_node.data_modified = True
             new_node.sync()
             # pass the overflowed entry upward
-            if header.parent == cf.INVALID: # root spilled, need to create a new root
+            if len(ancestors) == 0: # root spilled, need to create a new root
                 if header.page_no != cf.INDEX_ROOT_PAGE:
                     raise NodeInsertError(f'Root page no {header.page_no} is not {cf.INDEX_ROOT_PAGE}.')
                 # must swap the new node page with INDEX_ROOT_PAGE
                 new_page = pf_manager.append_page(file_id)
                 header.page_no = new_page
-                header.parent = cf.INDEX_ROOT_PAGE
                 if header.prev_sib != cf.INVALID:
                     raise NodeInsertError(f'Current root has a prev sib.')
-                # set the parent of the new split node
-                new_node.header.parent = cf.INDEX_ROOT_PAGE
-                new_node.data_modified = True
-                new_node.sync()
-                if header.node_type != cf.NODE_TYPE_LEAF: # change children's parent
-                    for child_page in [header.first_child] + [x.page_no for x in entries]:
-                        node = IX_TreeNode.deserialize(file_id, field_type, field_size,
-                            node_capacity, pf_manager.read_page(file_id, child_page))
-                        node.header.parent = new_page
-                        node.data_modified = True
-                        node.sync()
                 # new root node
-                new_root = IX_TreeNode(file_id, field_type, field_size, node_capacity,
-                    cf.NODE_TYPE_INTER, cf.INVALID, cf.INDEX_ROOT_PAGE)
+                new_root = IX_TreeNode(file_id, field_type, field_size,
+                    node_capacity, cf.NODE_TYPE_INTER, cf.INDEX_ROOT_PAGE)
                 new_root.header.entry_number = 1
                 new_root.header.first_child = header.page_no
                 new_root.entries = [IX_TreeNodeEntry(field_type, field_size,
@@ -386,21 +374,10 @@ class IX_TreeNode:
                 new_root.sync()
             else: # current node is not root, insert upward recursively
                 up_node = IX_TreeNode.deserialize(file_id, field_type, field_size,
-                    node_capacity, pf_manager.read_page(file_id, header.parent))
-                left_parent, right_parent = up_node.insert(up_field_value, up_page_no, up_slot_no)
-                header.parent = left_parent
-                if new_node.header.parent != right_parent:
-                    new_node.header.parent = right_parent
-                    new_node.data_modified = True
-                    new_node.sync()
-            if insert_idx < mid_idx:
-                new_parents = header.page_no, header.page_no
-            elif insert_idx > mid_idx:
-                new_parents = new_node.header.page_no, new_node.header.page_no
-            else: new_parents = header.page_no, new_node.header.page_no
+                    node_capacity, pf_manager.read_page(file_id, ancestors[-1]))
+                up_node.insert(up_field_value, up_page_no, up_slot_no, ancestors[:-1])
         self.data_modified = True
         self.sync()
-        return new_parents
 
     
 if __name__ == '__main__':

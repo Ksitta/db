@@ -29,7 +29,6 @@ def test_index_init():
         node_capacity, pf_manager.read_page(index_handle.data_file_id, cf.INDEX_ROOT_PAGE))
     header = root_node.header
     assert header.node_type == cf.NODE_TYPE_LEAF
-    assert header.parent == cf.INVALID
     assert header.page_no == cf.INDEX_ROOT_PAGE
     assert header.entry_number == 0
     assert header.prev_sib == cf.INVALID
@@ -46,16 +45,12 @@ def test_index_insert():
     ix_manager.create_index(file_name, index_no)
     index_handle: IX_IndexHandle = ix_manager.open_index(file_name, index_no)
     meta = {'field_type': cf.TYPE_INT, 'field_size': cf.SIZE_INT}
-    node_capacity = (cf.PAGE_SIZE-IX_TreeNodeHeader.size()) // (cf.SIZE_INT+8)
     index_handle.init_meta(meta)
     
-    N, M = 20, 10 
+    N, M = 20, 10
     values = np.repeat(np.arange(N), M)
     np.random.shuffle(values)
-    print(f'### values[:41]: {values[:41]}')
-    values = [1, 17, 10, 9, 18, 0, 14, 15, 6, 12, 8, 3, 13, 7, 4, 5, 11, 2, 13]
-    # for i in range(len(values)):
-    for i in range(9):
+    for i in range(N * M):
         index_handle.insert_entry(values[i], RM_Rid(0, i))
     scanned = np.zeros_like(values) - 1
     index_scan = IX_IndexScan()
@@ -63,9 +58,6 @@ def test_index_insert():
     for i, rid in enumerate(index_scan.next()):
         scanned[i] = rid.slot_no
     scanned = sorted(scanned)
-    root_node = IX_TreeNode.deserialize(index_handle.data_file_id, cf.TYPE_INT, cf.SIZE_INT,
-        node_capacity, pf_manager.read_page(index_handle.data_file_id, cf.INDEX_ROOT_PAGE))
-    root_node.print_subtree(0)
     assert np.min(np.arange(N*M) == scanned) == True
     
     ix_manager.close_index(file_name, index_no)

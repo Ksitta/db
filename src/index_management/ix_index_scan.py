@@ -57,7 +57,7 @@ class IX_IndexScan:
                 current_page = current_node.header.next_sib
                 if current_page == cf.INVALID: break
         elif comp_op == CompOp.EQ:
-            current_page = index_handle.search_leaf(field_value)
+            current_page, _ = index_handle.search_leaf(field_value)
             current_node = IX_TreeNode.deserialize(index_handle.data_file_id, field_type, field_size,
                 node_capacity, pf_manager.read_page(data_file_id, current_page))
             child_idx = current_node.search_child_idx(field_value)
@@ -76,7 +76,7 @@ class IX_IndexScan:
                 current_page = current_node.header.next_sib
                 if current_page == cf.INVALID: break
         elif comp_op == CompOp.GT or comp_op == CompOp.GE:
-            current_page = index_handle.search_leaf(field_value)
+            current_page, _ = index_handle.search_leaf(field_value)
             while True:
                 current_node = IX_TreeNode.deserialize(index_handle.data_file_id, field_type,
                     field_size, node_capacity, pf_manager.read_page(data_file_id, current_page))
