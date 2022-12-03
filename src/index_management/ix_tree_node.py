@@ -167,13 +167,14 @@ class IX_TreeNode:
         self.header = IX_TreeNodeHeader(node_type=node_type,
             page_no=page_no, entry_number=0, prev_sib=cf.INVALID,
             next_sib=cf.INVALID, first_child=cf.INVALID)
-        self.entries:List[IX_TreeNodeEntry] = list()
+        self.data = np.zeros(cf.PAGE_SIZE, dtype=np.uint8)
+        self.data[:IX_TreeNodeHeader.size()] = self.header.serialize()
         self.data_modified = True
         
     
     def __str__(self) -> str:
         header = self.header
-        entries = self.entries
+        entries = self.get_all_entries()
         to_str = lambda x : str(x.field_value)
         res = f'{{{header.page_no}, [{", ".join(map(to_str, entries))}]}}'
         if header.node_type == cf.NODE_TYPE_INTER: return res
@@ -183,6 +184,32 @@ class IX_TreeNode:
                 rids += f'({rid.page_no},{rid.slot_no}), '
             res += f'\n{rids}'
         return res
+    
+
+    def get_entry(self, idx:int) -> IX_TreeNodeEntry:
+        entry_size = self.field_size + 8
+        off = IX_TreeNodeHeader.size() + idx * entry_size
+        return IX_TreeNodeEntry.deserialize(self.field_type,
+            self.field_size, self.data[off:off+entry_size])
+        
+        
+    def get_all_entries(self) -> List[IX_TreeNodeEntry]:
+        entries = []
+        field_type, field_size, data = self.field_type, self.field_size, self.data
+        entry_number = self.header.entry_number
+        entry_size = self.field_size + 8
+        off = IX_TreeNodeHeader.size()
+        for _ in range(entry_number):
+            entries.append(IX_TreeNodeEntry.deserialize(
+                field_type, field_size, data[off:off+entry_size]))
+            off += entry_size
+        return entries
+        
+    
+    def set_entry(self, idx:int, entry:IX_TreeNodeEntry) -> None:
+        entry_size = self.field_size + 8
+        off = IX_TreeNodeHeader.size() + idx * entry_size
+        self.data[off:off+entry_size] = entry.serialize()
         
     
     def search_child_idx(self, field_value:Union[int, float, str]) -> int:
@@ -197,13 +224,14 @@ class IX_TreeNode:
             field_value: Union[int, float, str], type must match with self.field_type.
         return: int, the searched key position.
         '''
-        entries:List[IX_TreeNodeEntry] = self.entries
-        if len(entries) == 0: return 0
-        if entries[-1].field_value <= field_value: return len(entries)
-        left, right, mid = 0, len(entries), 0
+        entry_number = self.header.entry_number
+        if entry_number == 0: return 0
+        if self.get_entry(entry_number-1).field_value <= field_value:
+            return entry_number
+        left, right, mid = 0, entry_number, 0
         while left < right:
             mid = (left + right) // 2
-            if entries[mid].field_value <= field_value:
+            if self.get_entry(mid).field_value <= field_value:
                 left = mid + 1
             else: right = mid
         return left
@@ -214,31 +242,15 @@ class IX_TreeNode:
         ''' Deserialize a data page into tree node.
         '''
         node = IX_TreeNode(file_id, field_type, field_size, node_capacity, 0, 0)
-        header_size = IX_TreeNodeHeader.size()
-        entry_size = field_size + 8
-        header = IX_TreeNodeHeader.deserialize(data[:header_size])
-        entries = []
-        for i in range(header.entry_number):
-            off = header_size + i * entry_size
-            entries.append(IX_TreeNodeEntry.deserialize(field_type, field_size, data[off:off+entry_size]))
-        node.header = header
-        node.entries = entries
+        node.header = IX_TreeNodeHeader.deserialize(data[:IX_TreeNodeHeader.size()])
+        node.data[:] = data[:]
         return node
         
     
     def serialize(self) -> np.ndarray:
         ''' Serialize this tree node into a data page.
         '''
-        header, entries = self.header, self.entries
-        header_size = IX_TreeNodeHeader.size()
-        entry_size = self.field_size + 8
-        data = np.zeros(cf.PAGE_SIZE, dtype=np.uint8)
-        data[:header_size] = header.serialize()
-        off = header_size
-        for entry in entries:
-            data[off:off+entry_size] = entry.serialize()
-            off += entry_size
-        return data
+        return self.data.copy()
     
 
     def sync(self) -> None:
@@ -256,7 +268,7 @@ class IX_TreeNode:
             for line in lines[1:]:
                 print(f' '*4*(depth+1), end=''); print(line)
         if self.header.node_type == cf.NODE_TYPE_INTER:
-            for page_no in [self.header.first_child] + [x.page_no for x in self.entries]:
+            for page_no in [self.header.first_child] + [x.page_no for x in self.get_all_entries()]:
                 node = IX_TreeNode.deserialize(self.file_id,
                     self.field_type, self.field_size, self.node_capacity,
                     pf_manager.read_page(self.file_id, page_no))
@@ -283,14 +295,16 @@ class IX_TreeNode:
         (file_id, field_type, field_size, node_capacity) = \
             (self.file_id, self.field_type, self.field_size, self.node_capacity)
         header = self.header
-        entries = self.entries
+        header_size = IX_TreeNodeHeader.size()
+        entry_size = self.field_size + 8
+        data = self.data
         idx = self.search_child_idx(field_value)
-        repeated = (idx > 0 and entries[idx-1].field_value == field_value)
+        repeated = (idx > 0 and self.get_entry(idx-1).field_value == field_value)
         if header.entry_number < node_capacity or repeated: # no need to split
             if repeated: # encountered a reapeated entry in a leaf node
                 if header.node_type != cf.NODE_TYPE_LEAF:
                     raise NodeInsertError(f'Encounter a repeated entry in a non-leaf node.')
-                entry = entries[idx-1]
+                entry = self.get_entry(idx-1)
                 if entry.slot_no == cf.INVALID:
                     bucket_page = entry.page_no
                     while True:     # find the first free bucket
@@ -314,11 +328,17 @@ class IX_TreeNode:
                     bucket.sync(file_id, bucket_page)
                     entry.page_no = bucket_page
                     entry.slot_no = cf.INVALID
+                    self.set_entry(idx-1, entry)
             else:   # a different node entry
-                entries.insert(idx, IX_TreeNodeEntry(field_type,
-                    field_size, field_value, page_no, slot_no))
+                off = header_size + header.entry_number * entry_size
+                for _ in range(header.entry_number, idx, -1):
+                    data[off:off+entry_size] = data[off-entry_size:off]
+                    off -= entry_size
+                data[off:off+entry_size] = IX_TreeNodeEntry(field_type,
+                    field_size, field_value, page_no, slot_no).serialize()
                 header.entry_number += 1
         else:   # overflow, need to split this node
+            entries = self.get_all_entries()
             insert_idx = self.search_child_idx(field_value)
             entries.insert(insert_idx, IX_TreeNodeEntry(field_type, field_size, field_value, page_no, slot_no))
             mid_idx = (node_capacity+1) // 2
@@ -333,15 +353,17 @@ class IX_TreeNode:
             if header.node_type == cf.NODE_TYPE_INTER:
                 new_node.header.entry_number = node_capacity // 2
                 new_node.header.first_child = entries[mid_idx].page_no
-                new_node.entries = entries[mid_idx+1:]
+                for i in range(new_node.header.entry_number):
+                    new_node.set_entry(i, entries[mid_idx+1+i])
             elif header.node_type == cf.NODE_TYPE_LEAF:
                 new_node.header.entry_number = node_capacity // 2 + 1
-                new_node.entries = entries[mid_idx:]
+                for i in range(new_node.header.entry_number):
+                    new_node.set_entry(i, entries[mid_idx+i])
             else: raise NodeInsertError(f'Wrong node type: {header.node_type}.')
             # modify the current node
             header.entry_number = mid_idx
-            self.entries = entries[:mid_idx]
-            entries = self.entries
+            for i in range(header.entry_number):
+                self.set_entry(i, entries[i])
             # prev_sib and next_sib
             new_node.header.prev_sib = header.page_no
             new_node.header.next_sib = header.next_sib
@@ -352,6 +374,7 @@ class IX_TreeNode:
                 next_node.data_modified = True
                 next_node.sync()
             header.next_sib = new_page
+            new_node.data[:header_size] = new_node.header.serialize()
             new_node.data_modified = True
             new_node.sync()
             # pass the overflowed entry upward
@@ -368,14 +391,16 @@ class IX_TreeNode:
                     node_capacity, cf.NODE_TYPE_INTER, cf.INDEX_ROOT_PAGE)
                 new_root.header.entry_number = 1
                 new_root.header.first_child = header.page_no
-                new_root.entries = [IX_TreeNodeEntry(field_type, field_size,
-                    up_field_value, up_page_no, up_slot_no)]
+                new_root.set_entry(0, IX_TreeNodeEntry(field_type, field_size,
+                    up_field_value, up_page_no, up_slot_no))
+                new_root.data[:header_size] = new_root.header.serialize()
                 new_root.data_modified = True
                 new_root.sync()
             else: # current node is not root, insert upward recursively
                 up_node = IX_TreeNode.deserialize(file_id, field_type, field_size,
                     node_capacity, pf_manager.read_page(file_id, ancestors[-1]))
                 up_node.insert(up_field_value, up_page_no, up_slot_no, ancestors[:-1])
+        self.data[:header_size] = header.serialize()
         self.data_modified = True
         self.sync()
 
