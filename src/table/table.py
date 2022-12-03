@@ -178,6 +178,16 @@ class Table():
                 {'field_type': columns[each].type, 'field_size': columns[each].size})
             idx_handle.sync_meta()
             ix_manager.close_index(name, each)
+        
+        for each in fk:
+            idxes: List[Tuple] = each['foreign_key_pairs']
+            for idx in idxes:
+                ix_manager.create_index(name, idx[0])
+                idx_handle = ix_manager.open_index(name, idx[0])
+                idx_handle.init_meta(
+                    {'field_type': columns[idx[0]].type, 'field_size': columns[idx[0]].size})
+                idx_handle.sync_meta()
+                ix_manager.close_index(name, idx[0])
 
     def create_index(self, column_idx: int, records: List[Record]):
         if (column_idx in self._index_handles):

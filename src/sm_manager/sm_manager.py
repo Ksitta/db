@@ -171,14 +171,16 @@ class SM_Manager():
         if (rel_name not in self._tables):
             raise TableNotExistsError(rel_name)
         table = self._tables[rel_name]
+        
         res_map = table.get_reserve_map()
         res_tables = [self._tables[each[0]] for each in res_map]
         res_pairs = [each[1] for each in res_map]
-        res_pairs = [zip(*each) for each in res_pairs]
+        res_pairs = [list(zip(*each)) for each in res_pairs]
         res_len = len(res_tables)
+        
         for each in records.records:
             for i in range(res_len):
-                res_set = res_tables[i].find_exist(res_pairs[i][0], res_pairs[i][1], each)
+                res_set = res_tables[i].find_exist(res_pairs[i][0], res_pairs[i][1], each.data)
                 if(len(res_set) != 0):
                     raise ReferenceCountNotZeroError()
             table.delete_record(each.rid)
@@ -190,13 +192,25 @@ class SM_Manager():
             raise TableNotExistsError(rel_name)
         up_list: List[Tuple(int, Union[int, float, str, None])] = []
         table = self._tables[rel_name]
+        
+        res_map = table.get_reserve_map()
+        res_tables = [self._tables[each[0]] for each in res_map]
+        res_pairs = [each[1] for each in res_map]
+        res_pairs = [list(zip(*each)) for each in res_pairs]
+        res_len = len(res_tables) 
+        
         for each in set_clause:
             idx = table.get_column_idx(each[0])
             up_list.append((idx, each[1]))
+
         for each in records.records:
-            self._check_insert(table, each)
+            for i in range(res_len):
+                res_set = res_tables[i].find_exist(res_pairs[i][0], res_pairs[i][1], each.data)
+                if(len(res_set) != 0):
+                    raise ReferenceCountNotZeroError()
             for idx, val in up_list:
                 each.data[idx] = val
+            self._check_insert(table, each.data)
             table.update_record(each.rid, each)
 
     @require_using_db
