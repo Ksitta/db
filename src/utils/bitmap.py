@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Union
+from typing import List, Union
 
 import config as cf
 
@@ -74,6 +74,23 @@ class Bitmap:
                     break
         if res >= self.capacity: return cf.INVALID
         return res
+    
+    
+    def occupied_slots(self) -> List[int]:
+        ''' Return all occupied slots in the bitmap.
+        '''
+        res = []
+        for i, bits in enumerate(self.data):
+            base = (i << 3)
+            if (bits & 1) > 0: res.append(base)
+            if (bits & 2) > 0: res.append(base + 1)
+            if (bits & 4) > 0: res.append(base + 2)
+            if (bits & 8) > 0: res.append(base + 3)
+            if (bits & 16) > 0: res.append(base + 4)
+            if (bits & 32) > 0: res.append(base + 5)
+            if (bits & 64) > 0: res.append(base + 6)
+            if (bits & 128) > 0: res.append(base + 7)
+        return res
         
     
     def serialize(self) -> np.ndarray:
@@ -100,6 +117,7 @@ if __name__ == '__main__':
     for idx in (9, 15):
         bitmap.set_bit(idx, False)
     print(bitmap)
+    print(bitmap.occupied_slots())
     data = bitmap.serialize()
     print(data)
     bitmap = Bitmap.deserialize(16, data)

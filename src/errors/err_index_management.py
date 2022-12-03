@@ -34,6 +34,11 @@ class NodeInsertError(Exception):
     '''
     
 
+class NodeRemoveError(Exception):
+    ''' Raised when failed to remove an rid from a node.
+    '''
+
+
 # index handle
 class IndexInitMetaError(Exception):
     ''' Raised when failed to init index meta.

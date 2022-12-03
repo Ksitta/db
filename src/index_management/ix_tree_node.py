@@ -137,6 +137,7 @@ class IX_TreeNodeEntry:
         args:
             data_file_id: int, the index data file id.
         '''
+        if self.page_no == cf.INVALID and self.slot_no == cf.INVALID: return []
         if self.slot_no != cf.INVALID:
             return [RM_Rid(self.page_no, self.slot_no)]
         bucket_page = self.page_no
@@ -305,7 +306,12 @@ class IX_TreeNode:
                 if header.node_type != cf.NODE_TYPE_LEAF:
                     raise NodeInsertError(f'Encounter a repeated entry in a non-leaf node.')
                 entry = self.get_entry(idx-1)
-                if entry.slot_no == cf.INVALID:
+                if entry.page_no == cf.INVALID and entry.slot_no == cf.INVALID:
+                    # the only one rid has been removed
+                    entry.page_no = page_no
+                    entry.slot_no = slot_no
+                    self.set_entry(idx-1, entry)
+                elif entry.slot_no == cf.INVALID:
                     bucket_page = entry.page_no
                     while True:     # find the first free bucket
                         bucket = IX_RidBucket.deserialize(pf_manager.read_page(file_id, bucket_page))
@@ -403,7 +409,38 @@ class IX_TreeNode:
         self.data[:header_size] = header.serialize()
         self.data_modified = True
         self.sync()
-
+        
+    
+    def remove(self, field_value:Union[int, float, str], page_no:int, slot_no:int) -> None:
+        ''' Lasily mark the rid as invalid to remove data, without changing the
+            actual data structures of the B+ tree.
+        '''
+        header = self.header
+        if header.node_type != cf.NODE_TYPE_LEAF:
+            raise NodeRemoveError(f'Trying to remove an entry from a non-leaf node.')
+        (file_id, field_type, field_size, node_capacity) = \
+            (self.file_id, self.field_type, self.field_size, self.node_capacity)
+        idx = self.search_child_idx(field_value)
+        if idx <= 0 or self.get_entry(idx-1).field_value != field_value: return
+        entry = self.get_entry(idx-1)
+        if entry.page_no == cf.INVALID and entry.slot_no == cf.INVALID: return
+        if entry.page_no == page_no and entry.slot_no == slot_no:
+            entry.page_no = cf.INVALID
+            entry.slot_no = cf.INVALID
+            self.set_entry(idx-1, entry)
+            self.sync()
+        elif entry.slot_no == cf.INVALID:   # point to a rid bucket
+            bucket_page = entry.page_no
+            while True:
+                bucket = IX_RidBucket.deserialize(pf_manager.read_page(file_id, bucket_page))
+                slot = bucket.search_rid(page_no, slot_no)
+                if slot != cf.INVALID:
+                    bucket.remove_rid(slot)
+                    bucket.sync(file_id, bucket_page)
+                    break
+                if bucket.header.next_page == cf.INVALID: break
+                bucket_page = bucket.header.next_page
+                
     
 if __name__ == '__main__':
     pass

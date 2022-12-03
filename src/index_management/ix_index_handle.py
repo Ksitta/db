@@ -174,7 +174,12 @@ class IX_IndexHandle:
         '''
         if not self.is_opened:
             raise IndexNotOpenedError(f'Index {self.file_name}.{self.index_no} not opened.')
-
+        meta = self.meta
+        leaf_page, _ = self.search_leaf(field_value)
+        leaf_node = IX_TreeNode.deserialize(self.data_file_id, meta['field_type'], meta['field_size'],
+            meta['node_capacity'], pf_manager.read_page(self.data_file_id, leaf_page))
+        leaf_node.remove(field_value, rid.page_no, rid.slot_no)
+    
 
 if __name__ == '__main__':
     pass
