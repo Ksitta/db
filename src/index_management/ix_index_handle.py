@@ -83,7 +83,7 @@ class IX_IndexHandle:
         return current_page
         
     
-    def search_leaf(self, field_value:Union[int, float, str]) -> Tuple[int, Tuple[int]]:
+    def search_leaf(self, field_value:List[Union[int,float,str]]) -> Tuple[int, Tuple[int]]:
         ''' Search the leaf node by a field value in this index.
         return: Tuple[int, Tuple[int]], the page_no of the leaf node and its ancestors.
         '''
@@ -107,9 +107,13 @@ class IX_IndexHandle:
         ''' Init the index meta info. Use ONLY when the index was just created.
         args:
             meta: dict, data structure = {
-                'field_type': int,                      # MUST, in {TYPE_INT, TYPE_FLOAT, TYPE_STR}.
-                'field_size': int,                      # MUST, the field size in bytes.
-                'node_capacity': int,                   # OPTIONAL, will be calculated from field_size.
+                'field_number': int,                    # MUST, the number of fields to be indexed.
+                'fields': List[Dict[str,int]] = [{      # MUST, the fields to be indexed.
+                    'field_type': int,                  # MUST, in {TYPE_INT, TYPE_FLOAT, TYPE_STR}.
+                    'field_size': int,                  # MUST, in {TYPE_INT, TYPE_FLOAT, TYPE_STR}.
+                }, ...],
+                'verbose_en': bool,                     # MUST, whether to enable verbose field in the index or not.
+                'node_capacity': int,                   # OPTIONAL, will be calculated from fields.
             } TO BE CONTINUED ...
         '''
         if not self.is_opened:
@@ -157,8 +161,13 @@ class IX_IndexHandle:
         self.meta_modified = False
         
     
-    def insert_entry(self, field_value:Union[int, float, str], rid:RM_Rid) -> None:
+    def insert_entry(self, field_value:List[Union[int,float,str]],
+            rid:RM_Rid, verbose:int=0) -> None:
         ''' Insert an entry to the index.
+        args:
+            field_value: List[Union[int,float,str]], a list of fields to be indexed.
+            rid: RM_Rid, the record rid.
+            verbose: int, the verbose field. If verbose_en is False, this arg will be ignored.
         '''
         if not self.is_opened:
             raise IndexNotOpenedError(f'Index {self.file_name}.{self.index_no} not opened.')
@@ -169,7 +178,7 @@ class IX_IndexHandle:
         leaf_node.insert(field_value, rid.page_no, rid.slot_no, ancestors)
     
     
-    def remove_entry(self, field_value:Union[int, float, str], rid:RM_Rid) -> None:
+    def remove_entry(self, field_value:List[Union[int,float,str]], rid:RM_Rid) -> None:
         ''' Remove an entry.
         '''
         if not self.is_opened:
@@ -179,6 +188,17 @@ class IX_IndexHandle:
         leaf_node = IX_TreeNode.deserialize(self.data_file_id, meta['field_type'], meta['field_size'],
             meta['node_capacity'], pf_manager.read_page(self.data_file_id, leaf_page))
         leaf_node.remove(field_value, rid.page_no, rid.slot_no)
+        
+    
+    def modify_verbose(self, field_value:List[Union[int,float,str]], rid:RM_Rid, delta:int) -> int:
+        ''' Modify a verbode field in the index.
+            Use ONLY when verbose_en is True.
+        args:
+            delta: int, will act like this: verbose += delta.
+        return:
+            int, the modified verbose value.
+        '''
+        
     
 
 if __name__ == '__main__':
