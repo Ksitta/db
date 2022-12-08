@@ -21,7 +21,7 @@ class IX_IndexScan:
     
     
     def open_scan(self, index_handle:IX_IndexHandle, comp_op:CompOp=CompOp.NO,
-        field_value:Union[int, float, str]=None) -> None:
+        field_value:List[Union[int,float,str]]=None) -> None:
         ''' Open the index scan.
         args:
             index_handle: IX_IndexHandle, an opened index handle instance.
@@ -36,8 +36,11 @@ class IX_IndexScan:
         self.comp_op, self.field_value = comp_op, field_value
     
     
-    def next(self) -> RM_Rid:
+    def next(self) -> Tuple[RM_Rid,int]:
         ''' Yield the next scanned rid that satisfies the filtering condition.
+        return:
+            Tuple[RM_Rid, int], the record rid and the verbose field.
+            If verbose_en is False, the returned int will be INVALID.
         '''
         if not self.is_opened: return None
         index_handle = self.index_handle
