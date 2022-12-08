@@ -11,6 +11,7 @@ import shutil
 from common.common import *
 import pandas as pd
 from operators.operators import TableScanNode
+from utils.bitwise import list_int_to_int, int_to_list_int
 
 
 def require_using_db(func):
@@ -51,11 +52,6 @@ class SM_Manager():
                 if (file.endswith(TABLE_DATA_SUFFIX)):
                     self._tables[file[:-len(TABLE_DATA_SUFFIX)]
                                  ] = Table(file[:-len(TABLE_DATA_SUFFIX)])
-            for table in self._tables.values():
-                fk = table.get_fk()
-                for each in fk:
-                    target_table = self._tables[each["target_table_name"]]
-                    target_table.add_reserver_map(table.get_name(), each)
 
     def create_db(self, db_name: str):
         if (db_name in self._db_names):
@@ -123,7 +119,6 @@ class SM_Manager():
             fk_pairs: List[Tuple] = each["foreign_key_pairs"]
             for pair in fk_pairs:
                 target_table.create_index(pair[1] ,records)
-            target_table.add_reserver_map(rel_name, each)
         self._tables[rel_name] = Table(rel_name)
 
     @require_using_db
@@ -148,41 +143,54 @@ class SM_Manager():
     def _check_insert(self, table: Table, values: List[Union[int, str, float]]):
         table.check_fields(values)
         table.check_primary_key(values)
-        for each in table.get_fk():
-            target_table = self._tables[each["target_table_name"]]
-            fk_pairs: List[tuple] = each["foreign_key_pairs"]
-            local_idx, target_idx = zip(
-                *[fk_pairs[i] for i in range(len(each["foreign_key_pairs"]))])
-            res = target_table.find_exist(target_idx, local_idx, values)
-            if(len(res) == 0):
-                raise ForeignKeyNotExistsError()
+
+    def _check_fk(self, fk: List[Dict], values: List[List[Union[int, str, float]]]):
+        for each in fk:
+            target_table = self.get_table(each["target_table_name"])
+            fk_pairs: List[Tuple] = each["foreign_key_pairs"]
+            local_idx = [each[0] for each in fk_pairs]
+            val_list = []
+            for val in values:
+                val_list.append([val[i] for i in local_idx])
+
+            target_table.check_foreign_key(val_list)
+
+    def _modify_ref_cnt(self, fk: Dict, values: List[List[Union[int, float, str]]]):
+        for each in fk:
+            target_table = self.get_table(each["target_table_name"])
+            fk_pairs: List[Tuple] = each["foreign_key_pairs"]
+            local_idx = [each[0] for each in fk_pairs]
+            val_list = []
+            for val in values:
+                val_list.append([val[i] for i in local_idx])
+            target_table.modify_ref_cnt(val_list, 1)
 
     @require_using_db
     def insert(self, rel_name: str, values: List[List[Union[int, float, str]]]):
         if (rel_name not in self._tables):
             raise TableNotExistsError(rel_name)
         table = self._tables[rel_name]
+        fk = table.get_fk()
+
+        self._check_fk(fk, values)
+
         for each in values:
             self._check_insert(table, each)
-            table.insert_record(each)
+            table.insert_records([each])
+
+        self._modify_ref_cnt(fk, values)
+              
 
     @require_using_db
     def delete(self, rel_name: str, records: RecordList):
         if (rel_name not in self._tables):
             raise TableNotExistsError(rel_name)
-        table = self._tables[rel_name]
-        
-        res_map = table.get_reserve_map()
-        res_tables = [self._tables[each[0]] for each in res_map]
-        res_pairs = [each[1] for each in res_map]
-        res_pairs = [list(zip(*each)) for each in res_pairs]
-        res_len = len(res_tables)
+        table: Table = self._tables[rel_name]
         
         for each in records.records:
-            for i in range(res_len):
-                res_set = res_tables[i].find_exist(res_pairs[i][0], res_pairs[i][1], each.data)
-                if(len(res_set) != 0):
-                    raise ReferenceCountNotZeroError()
+            ref_cnt = table.get_ref_cnt(each.data)
+            if(ref_cnt != 0):
+                raise ReferenceCountNotZeroError()
             table.delete_record(each)
             
 
@@ -193,21 +201,14 @@ class SM_Manager():
         up_list: List[Tuple(int, Union[int, float, str, None])] = []
         table = self._tables[rel_name]
         
-        res_map = table.get_reserve_map()
-        res_tables = [self._tables[each[0]] for each in res_map]
-        res_pairs = [each[1] for each in res_map]
-        res_pairs = [list(zip(*each)) for each in res_pairs]
-        res_len = len(res_tables) 
-        
         for each in set_clause:
             idx = table.get_column_idx(each[0])
             up_list.append((idx, each[1]))
 
         for each in records.records:
-            for i in range(res_len):
-                res_set = res_tables[i].find_exist(res_pairs[i][0], res_pairs[i][1], each.data)
-                if(len(res_set) != 0):
-                    raise ReferenceCountNotZeroError()
+            ref_cnt = table.get_ref_cnt(each.data)
+            if(ref_cnt != 0):
+                raise ReferenceCountNotZeroError()
             for idx, val in up_list:
                 each.data[idx] = val
             self._check_insert(table, each.data)
@@ -219,16 +220,17 @@ class SM_Manager():
             raise TableNotExistsError(rel_name)
         table = self._tables[rel_name]
         records = table.load_all_records()
-        for each in idents:
-            table.create_index(table.get_column_idx(each), records)
+        column_idx = [table.get_column_idx(each) for each in idents]
+        table.create_index(column_idx, records)
 
     @require_using_db
     def drop_index(self, rel_name: str, idents: List[str]):
         if (rel_name not in self._tables):
             raise TableNotExistsError(rel_name)
         table = self._tables[rel_name]
-        for each in idents:
-            table.drop_index(table.get_column_idx(each))
+        column_idx = [table.get_column_idx(each) for each in idents]
+        index_no = list_int_to_int(column_idx)
+        table.drop_index(index_no)
 
     @require_using_db
     def load(self, rel_name: str, file_name: str):
@@ -247,8 +249,9 @@ class SM_Manager():
             i += 1
         raw_datas = pd.read_csv(file_name, header=None, dtype=dtypes)
         values = raw_datas.values.tolist()
-        for each in values:
-            table.insert_record(each)
+        table.insert_records(values)
+        self._modify_ref_cnt(table.get_fk(), values)
+
 
     @require_using_db
     def dump(self, rel_name: str, file_name: str):
@@ -291,9 +294,6 @@ class SM_Manager():
         table.drop_fk(fk_name)
 
     def help(self):
-        pass
-
-    def set(self, param_name: str, value: str):
         pass
 
     @require_using_db

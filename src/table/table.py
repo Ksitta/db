@@ -10,8 +10,42 @@ import struct
 from index_management.ix_manager import ix_manager
 from index_management.ix_index_scan import IX_IndexScan
 from operators.conditions import Condition, AlgebraCondition
-
+from utils.bitwise import *
 class Table():
+    def check_foreign_key(self, val_list: List[List[Union[int, float, str]]]):
+        index_no = list_int_to_int(self._fk)
+        handle = self._index_handles[index_no]
+        scan = IX_IndexScan()
+        for val in val_list:
+            scan.open_scan(handle, CompOp.EQ, val)
+            rid_gen = scan.next()
+            exist = False
+            for each in rid_gen:
+                exist = True
+                break
+            if not exist:
+                raise Exception("Foreign key not found")
+            scan.close_scan()
+            
+
+
+    def modify_ref_cnt(self, val_list: List[List[Union[int, str, float]]], delta: int):
+        if(len(self._pk) == 0):
+            return
+        index_no = list_int_to_int(self._pk)
+        handle = self._index_handles[index_no]
+        for each in val_list:
+            handle.modify_verbose(each, delta)
+
+    def get_ref_cnt(self, fields: List[Union[int, str, float]]):
+        if(len(self._pk) == 0):
+            return 0
+        vals = [fields[i] for i in self._pk]
+        index_no = list_int_to_int(self._pk)
+        cnts = self._index_handles[index_no].modify_verbose(vals, 0)
+        return cnts[0]
+        
+
     def index_exist(self, column_idx: int) -> bool:
         return column_idx in self._index_handles
 
@@ -33,8 +67,9 @@ class Table():
         objects = list(zip(*cols))
         if(len(set(objects)) != len(objects)):
             raise Exception("Primary key conflict")
-        for each in pk:
-            self.create_index(each, records)
+        # for each in pk:
+        #     self.create_index(each, records)
+
         self._pk = pk
         self.sync_fk_pk()
 
@@ -69,28 +104,18 @@ class Table():
                 return i
 
     def find_exist(self, idxes: List[int], value_idxes: List[int], values: List[Union[int, float, str]]) -> Set[RM_Rid]:
-        if len(idxes) == 0:
-            return set()
         scaner = IX_IndexScan()
-        result: List[set] = list()
-        for i in range(len(idxes)):
-            val = values[value_idxes[i]]
-            handle = self._index_handles[idxes[i]]
-            scaner.open_scan(handle, CompOp.EQ, val)
-            res = set()
-            res_gen = scaner.next()
-            for each in res_gen:
-                res.add(each)
-            scaner.close_scan()
-            result.append(res)
+        idx_no = list_int_to_int(idxes)
+        handle = self._index_handles[idx_no]
+        val = [values[i] for i in value_idxes]
+        scaner.open_scan(handle, CompOp.EQ, val)
+        res = set()
+        res_gen = scaner.next()
+        for each in res_gen:
+            res.add(each)
+        scaner.close_scan()
+        return res
 
-        # intersection all result
-        res_set = result[0]
-
-        for each in result[1:]:
-            res_set = res_set.intersection(each)
-
-        return res_set
 
     def check_primary_key(self, value: List[Union[int, float, str]]):
         if (len(self._pk) == 0):
@@ -123,11 +148,10 @@ class Table():
         return self._name
 
     @staticmethod
-    def create_table(name: str, columns: list, pk: List[int], fk: List[Dict]):
+    def create_table(name: str, columns: List[Column], pk: List[int], fk: List[Dict]):
         rm_manager.create_file(name)
 
         file_handle: RM_FileHandle = rm_manager.open_file(name)
-        columns: List[Column] = columns
 
         meta: dict = dict()
         meta['column_number'] = len(columns) + 1
@@ -170,42 +194,40 @@ class Table():
         file_handle.init_meta(meta)
 
         rm_manager.close_file(name)
-        for each in pk:
-            ix_manager.create_index(name, each)
-            idx_handle = ix_manager.open_index(name, each)
-            idx_handle.init_meta(
-                {'field_type': columns[each].type, 'field_size': columns[each].size})
-            idx_handle.sync_meta()
-            ix_manager.close_index(name, each)
-        
-        for each in fk:
-            idxes: List[Tuple] = each['foreign_key_pairs']
-            exist_idx = ix_manager.query_index(".", name)
-            for idx in idxes:
-                if(idx[0] in exist_idx):
-                    continue
-                ix_manager.create_index(name, idx[0])
-                idx_handle = ix_manager.open_index(name, idx[0])
-                idx_handle.init_meta(
-                    {'field_type': columns[idx[0]].type, 'field_size': columns[idx[0]].size})
-                idx_handle.sync_meta()
-                ix_manager.close_index(name, idx[0])
 
-    def create_index(self, column_idx: int, records: List[Record]):
-        if (column_idx in self._index_handles):
+        # create index for primary key
+        index_no = list_int_to_int(pk)
+        if index_no != 0:
+            ix_manager.create_index(name, index_no)
+            idx_handle = ix_manager.open_index(name, index_no)
+            idx_meta = dict()
+            idx_meta['field_number'] = len(pk)
+            idx_meta['fields'] = [(columns[each].type,columns[each].size) for each in pk]
+            idx_meta['verbose_en'] = True
+            idx_handle.init_meta(idx_meta)
+            idx_handle.sync_meta()
+            ix_manager.close_index(name, index_no)
+        
+
+    def create_index(self, column_idx: List[int], records: List[Record], verbose_en):
+        index_no = list_int_to_int(column_idx)
+        if (index_no in self._index_handles):
             return
-        ix_manager.create_index(self._name, column_idx)
-        idx_handle = ix_manager.open_index(
-            self._name, column_idx)
-        idx_handle.init_meta(
-            {'field_type': self._columns[column_idx].type, 'field_size': self._columns[column_idx].size})
+        ix_manager.create_index(self._name, index_no)
+        idx_handle = ix_manager.open_index(self._name, index_no)
+        idx_meta = dict()
+        idx_meta['field_number'] = len(column_idx)
+        idx_meta['fields'] = [(self._columns[each].type, self._columns[each].size) for each in column_idx]
+        idx_meta['verbose_en'] = verbose_en
+        idx_handle.init_meta(idx_meta)
         idx_handle.sync_meta()
-        self._index_handles[column_idx] = idx_handle
+        self._index_handles[index_no] = idx_handle
         for each in records:
-            idx_handle.insert_entry(each.data[column_idx], each.rid)
+            val = [each.data[i] for i in column_idx]
+            idx_handle.insert_entry(val, each.rid)
 
     def drop_index(self, column_idx: int):
-        if (self._index_handles[column_idx] == None):
+        if (column_idx not in self._index_handles):
             raise Exception("Index not exists")
         ix_manager.close_index(self._name, column_idx)
         del self._index_handles[column_idx]
@@ -256,14 +278,19 @@ class Table():
                 if (self._columns[i].nullable == False):
                     raise Exception("Field type not match")
 
-    def insert_record(self, fields: List[Union[int, float, str, None]]):
-        data: np.ndarray = self._file_handle.pack_record(fields)
-        rid = self._file_handle.insert_record(data)
-        for each in self._index_handles:
-            self._index_handles[each].insert_entry(fields[each], rid)
-
-    def add_reserver_map(self, name: str, fk: Dict):
-        self._reserve_map.append((name, fk["foreign_key_pairs"]))
+    def insert_records(self, fields_list: List[List[Union[int, float, str, None]]]):
+        rids = []
+        for each in fields_list:
+            data: np.ndarray = self._file_handle.pack_record(each)
+            rid = self._file_handle.insert_record(data)
+            rids.append(rid)
+        for index_no in self._index_handles:
+            column_idx = int_to_list_int(index_no)
+            handle = self._index_handles[index_no]
+            for i in range(len(fields_list)):
+                each = fields_list[i]
+                val = [each[idx] for idx in column_idx]
+                handle.insert_entry(val, rids[i])
 
     def get_reserve_map(self):
         return self._reserve_map
