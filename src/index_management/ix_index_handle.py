@@ -108,10 +108,10 @@ class IX_IndexHandle:
         args:
             meta: dict, data structure = {
                 'field_number': int,                    # MUST, the number of fields to be indexed.
-                'fields': List[Dict[str,int]] = [{      # MUST, the fields to be indexed.
-                    'field_type': int,                  # MUST, in {TYPE_INT, TYPE_FLOAT, TYPE_STR}.
-                    'field_size': int,                  # MUST, in {TYPE_INT, TYPE_FLOAT, TYPE_STR}.
-                }, ...],
+                'fields': List[Tuple[int,int]],         # MUST, the fields to be indexed.
+                                                          the two ints in each tuple are field_type and field_size.
+                                                          field_type must be in {TYPE_INT, TYPE_FLOAT, TYPE_STR},
+                                                          field_size must be in {TYPE_INT, TYPE_FLOAT, TYPE_STR}.
                 'verbose_en': bool,                     # MUST, whether to enable verbose field in the index or not.
                 'node_capacity': int,                   # OPTIONAL, will be calculated from fields.
             } TO BE CONTINUED ...
@@ -190,13 +190,13 @@ class IX_IndexHandle:
         leaf_node.remove(field_value, rid.page_no, rid.slot_no)
         
     
-    def modify_verbose(self, field_value:List[Union[int,float,str]], rid:RM_Rid, delta:int) -> int:
-        ''' Modify a verbode field in the index.
+    def modify_verbose(self, field_value:List[Union[int,float,str]], delta:int) -> List[int]:
+        ''' Modify all verbose fields of the field_value in the index.
             Use ONLY when verbose_en is True.
         args:
             delta: int, will act like this: verbose += delta.
         return:
-            int, the modified verbose value.
+            List[int], the modified verbose values.
         '''
         
     
