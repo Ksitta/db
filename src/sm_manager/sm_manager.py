@@ -105,7 +105,8 @@ class SM_Manager():
                 raise DuplicateForeignKeyError()
             if(len(set(target_idx)) != len(target_idx)):
                 raise DuplicateForeignKeyError()
-            target_columns = self._tables[fk_dict["target_table_name"]].get_columns()
+            target_columns = self._tables[fk_dict["target_table_name"]].get_columns(
+            )
             for i in range(len(local_idx)):
                 if (columns[local_idx[i]].type != target_columns[target_idx[i]].type or columns[local_idx[i]].size != target_columns[target_idx[i]].size):
                     raise ForeignKeyTypeError()
@@ -118,7 +119,7 @@ class SM_Manager():
             records = target_table.load_all_records()
             fk_pairs: List[Tuple] = each["foreign_key_pairs"]
             for pair in fk_pairs:
-                target_table.create_index(pair[1] ,records)
+                target_table.create_index(pair[1], records)
         self._tables[rel_name] = Table(rel_name)
 
     @require_using_db
@@ -179,20 +180,18 @@ class SM_Manager():
             table.insert_records([each])
 
         self._modify_ref_cnt(fk, values)
-              
 
     @require_using_db
     def delete(self, rel_name: str, records: RecordList):
         if (rel_name not in self._tables):
             raise TableNotExistsError(rel_name)
         table: Table = self._tables[rel_name]
-        
+
         for each in records.records:
             ref_cnt = table.get_ref_cnt(each.data)
             if(ref_cnt != 0):
                 raise ReferenceCountNotZeroError()
             table.delete_record(each)
-            
 
     @require_using_db
     def update(self, rel_name: str, records: RecordList, set_clause: List):
@@ -200,7 +199,7 @@ class SM_Manager():
             raise TableNotExistsError(rel_name)
         up_list: List[Tuple(int, Union[int, float, str, None])] = []
         table = self._tables[rel_name]
-        
+
         for each in set_clause:
             idx = table.get_column_idx(each[0])
             up_list.append((idx, each[1]))
@@ -251,7 +250,6 @@ class SM_Manager():
         values = raw_datas.values.tolist()
         table.insert_records(values)
         self._modify_ref_cnt(table.get_fk(), values)
-
 
     @require_using_db
     def dump(self, rel_name: str, file_name: str):
@@ -324,5 +322,6 @@ class SM_Manager():
 
     def show_indexes(self):
         raise NotImplementedError()
+
 
 sm_manager = SM_Manager()

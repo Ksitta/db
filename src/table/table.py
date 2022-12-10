@@ -11,6 +11,8 @@ from index_management.ix_manager import ix_manager
 from index_management.ix_index_scan import IX_IndexScan
 from operators.conditions import Condition, AlgebraCondition
 from utils.bitwise import *
+
+
 class Table():
     def check_foreign_key(self, val_list: List[List[Union[int, float, str]]]):
         index_no = list_int_to_int(self._fk)
@@ -26,8 +28,6 @@ class Table():
             if not exist:
                 raise Exception("Foreign key not found")
             scan.close_scan()
-            
-
 
     def modify_ref_cnt(self, val_list: List[List[Union[int, str, float]]], delta: int):
         if(len(self._pk) == 0):
@@ -44,7 +44,6 @@ class Table():
         index_no = list_int_to_int(self._pk)
         cnts = self._index_handles[index_no].modify_verbose(vals, 0)
         return cnts[0]
-        
 
     def index_exist(self, column_idx: int) -> bool:
         return column_idx in self._index_handles
@@ -115,7 +114,6 @@ class Table():
             res.add(each)
         scaner.close_scan()
         return res
-
 
     def check_primary_key(self, value: List[Union[int, float, str]]):
         if (len(self._pk) == 0):
@@ -202,12 +200,12 @@ class Table():
             idx_handle = ix_manager.open_index(name, index_no)
             idx_meta = dict()
             idx_meta['field_number'] = len(pk)
-            idx_meta['fields'] = [(columns[each].type,columns[each].size) for each in pk]
+            idx_meta['fields'] = [
+                (columns[each].type, columns[each].size) for each in pk]
             idx_meta['verbose_en'] = True
             idx_handle.init_meta(idx_meta)
             idx_handle.sync_meta()
             ix_manager.close_index(name, index_no)
-        
 
     def create_index(self, column_idx: List[int], records: List[Record], verbose_en):
         index_no = list_int_to_int(column_idx)
@@ -217,7 +215,8 @@ class Table():
         idx_handle = ix_manager.open_index(self._name, index_no)
         idx_meta = dict()
         idx_meta['field_number'] = len(column_idx)
-        idx_meta['fields'] = [(self._columns[each].type, self._columns[each].size) for each in column_idx]
+        idx_meta['fields'] = [
+            (self._columns[each].type, self._columns[each].size) for each in column_idx]
         idx_meta['verbose_en'] = verbose_en
         idx_handle.init_meta(idx_meta)
         idx_handle.sync_meta()
@@ -298,7 +297,8 @@ class Table():
     def delete_record(self, record: Record):
         self._file_handle.remove_record(record.rid)
         for each in self._index_handles:
-            self._index_handles[each].remove_entry(record.data[each], record.rid)
+            self._index_handles[each].remove_entry(
+                record.data[each], record.rid)
 
     def update_record(self, rid: RM_Rid, record: Record):
         data = self._file_handle.pack_record(record.data)
@@ -333,7 +333,8 @@ class Table():
             res = res.intersection(each)
 
         rm_records = [self._file_handle.get_record(each) for each in res]
-        records = [Record(self._file_handle.unpack_record(each.data), each.rid) for each in rm_records]
+        records = [Record(self._file_handle.unpack_record(
+            each.data), each.rid) for each in rm_records]
         return records
 
     def get_column_names(self) -> List[str]:
