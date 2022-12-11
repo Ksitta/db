@@ -202,13 +202,14 @@ class SM_Manager():
             ref_cnt = table.get_ref_cnt(each.data)
             if(ref_cnt != 0):
                 raise ReferenceCountNotZeroError()
+            old_vals = each.data.copy()
             for idx, val in up_list:
                 each.data[idx] = val
-            np_array = np.array([each], dtype=object)
+            np_array = np.array([each.data], dtype=object)
             self._check_fk(table.get_fk(), np_array)
             self._check_insert(table, np_array)
             self._modify_ref_cnt(fk, np_array, -1)
-            self.delete
+            table.delete_entry(old_vals, each.rid)
             table.update_record(each.rid, each)
 
     @require_using_db

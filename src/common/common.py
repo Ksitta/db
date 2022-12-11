@@ -30,8 +30,8 @@ class Column():
 
 class Record():
 
-    def __init__(self, columns: List[Union[int, float, str]], rid: RM_Rid = None) -> None:
-        self.data: List[Union[int, float, str]] = columns
+    def __init__(self, columns: np.ndarray, rid: RM_Rid = None) -> None:
+        self.data: np.ndarray = columns
         self.rid: RM_Rid = rid
 
     def get_field(self, cnt: int) -> Union[int, float, str]:
