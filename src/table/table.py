@@ -14,7 +14,7 @@ from utils.bitwise import *
 
 
 class Table():
-    def check_foreign_key(self, val_list: List[List[Union[int, float, str]]]):
+    def check_foreign_key(self, val_list: np.ndarray):
         index_no = list_int_to_int(self._fk)
         handle = self._index_handles[index_no]
         scan = IX_IndexScan()
@@ -29,7 +29,7 @@ class Table():
                 raise Exception("Foreign key not found")
             scan.close_scan()
 
-    def modify_ref_cnt(self, val_list: List[List[Union[int, str, float]]], delta: int):
+    def modify_ref_cnt(self, val_list: np.ndarray, delta: int):
         if(len(self._pk) == 0):
             return
         index_no = list_int_to_int(self._pk)
@@ -37,10 +37,10 @@ class Table():
         for each in val_list:
             handle.modify_verbose(each, delta)
 
-    def get_ref_cnt(self, fields: List[Union[int, str, float]]):
+    def get_ref_cnt(self, fields: np.ndarray):
         if(len(self._pk) == 0):
             return 0
-        vals = [fields[i] for i in self._pk]
+        vals = fields[self._pk]
         index_no = list_int_to_int(self._pk)
         cnts = self._index_handles[index_no].modify_verbose(vals, 0)
         return cnts[0]
@@ -66,8 +66,6 @@ class Table():
         objects = list(zip(*cols))
         if(len(set(objects)) != len(objects)):
             raise Exception("Primary key conflict")
-        # for each in pk:
-        #     self.create_index(each, records)
 
         self._pk = pk
         self.sync_fk_pk()
@@ -102,22 +100,28 @@ class Table():
             if each.name == col_name:
                 return i
 
-    def find_exist(self, idxes: List[int], value_idxes: List[int], values: List[Union[int, float, str]]) -> Set[RM_Rid]:
+    def find_exist(self, idxes: List[int], value_idxes: List[int], values: np.ndarray) -> Set[RM_Rid]:
         scaner = IX_IndexScan()
         idx_no = list_int_to_int(idxes)
         handle = self._index_handles[idx_no]
-        val = [values[i] for i in value_idxes]
-        scaner.open_scan(handle, CompOp.EQ, val)
+        val = values[:,value_idxes].tolist()
         res = set()
-        res_gen = scaner.next()
-        for each in res_gen:
-            res.add(each)
-        scaner.close_scan()
+        for each in val:
+            scaner.open_scan(handle, CompOp.EQ, each)
+            res_gen = scaner.next()
+            for rid in res_gen:
+                res.add(rid)
+            scaner.close_scan()
         return res
 
-    def check_primary_key(self, value: List[Union[int, float, str]]):
+    def check_primary_key(self, value: np.ndarray):
         if (len(self._pk) == 0):
             return
+        pks = value[:,self._pk].tolist()
+        pks = set([tuple(each) for each in pks])
+        if (len(pks) != len(value)):
+            raise Exception("Primary key conflict")
+
         result = self.find_exist(self._pk, self._pk, value)
 
         if (len(result) != 0):
@@ -249,7 +253,6 @@ class Table():
             i: ix_manager.open_index(name, i) for i in indexs}
         for each in self._index_handles.values():
             each.read_meta()
-        self._reserve_map: List[Tuple[str, List[Tuple]]] = []
 
     def __del__(self) -> None:
         for each in self._index_handles:
@@ -257,25 +260,25 @@ class Table():
         self._file_handle.sync_meta()
         rm_manager.close_file(self._name)
 
-    def check_fields(self, fields: List[Union[int, float, str, None]]):
-        if (len(fields) != len(self._columns)):
+    def check_fields(self, fields: np.ndarray):
+        length = len(self._columns)
+        if (len(fields.shape) == 1 or fields.shape[1] != length):
             raise Exception("Field number not match")
-        for i in range(len(fields)):
-            if (type(fields[i]) is int):
-                if (self._columns[i].type != TYPE_INT):
-                    raise Exception(
-                        "Field type not match expected int but got {}".format())
-            if (type(fields[i]) is float):
-                if (self._columns[i].type != TYPE_FLOAT):
+        types = []
+        for each in self._columns:
+            if each.type == TYPE_INT:
+                types.append(int)
+            if each.type == TYPE_FLOAT:
+                types.append(float)
+            if each.type == TYPE_STR:
+                types.append(str)
+        for i in range(length):
+            for each in fields[:, i]:
+                if (type(each) != types[i]):
                     raise Exception("Field type not match")
-            if (type(fields[i]) is str):
-                if (self._columns[i].type != TYPE_STR):
-                    raise Exception("Field type not match")
-            if (fields[i] is None):
-                if (self._columns[i].nullable == False):
-                    raise Exception("Field type not match")
+        
 
-    def insert_records(self, fields_list: List[List[Union[int, float, str, None]]]):
+    def insert_records(self, fields_list: np.ndarray):
         rids = []
         for each in fields_list:
             data: np.ndarray = self._file_handle.pack_record(each)
@@ -284,13 +287,9 @@ class Table():
         for index_no in self._index_handles:
             column_idx = int_to_list_int(index_no)
             handle = self._index_handles[index_no]
+            vals = fields_list[:, column_idx]
             for i in range(len(fields_list)):
-                each = fields_list[i]
-                val = [each[idx] for idx in column_idx]
-                handle.insert_entry(val, rids[i])
-
-    def get_reserve_map(self):
-        return self._reserve_map
+                handle.insert_entry(vals[i], rids[i])
 
     def delete_record(self, record: Record):
         self._file_handle.remove_record(record.rid)

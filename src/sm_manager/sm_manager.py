@@ -135,33 +135,30 @@ class SM_Manager():
         self._tables.pop(rel_name)
         rm_manager.remove_file(rel_name)
 
-    def _check_insert(self, table: Table, values: List[Union[int, str, float]]):
+    def _check_insert(self, table: Table, values: np.ndarray):
         table.check_fields(values)
         table.check_primary_key(values)
 
-    def _check_fk(self, fk: List[Dict], values: List[List[Union[int, str, float]]]):
+    def _check_fk(self, fk: List[Dict], values: np.ndarray):
         for each in fk:
             target_table = self.get_table(each["target_table_name"])
             fk_pairs: List[Tuple] = each["foreign_key_pairs"]
             local_idx = [each[0] for each in fk_pairs]
-            val_list = []
-            for val in values:
-                val_list.append([val[i] for i in local_idx])
+            target_idx = [each[1] for each in fk_pairs]
+            res = target_table.find_exist(target_idx, local_idx, values)
+            if (len(res) == 0):
+                raise ForeignKeyNotExistsError()
 
-            target_table.check_foreign_key(val_list)
-
-    def _modify_ref_cnt(self, fk: Dict, values: List[List[Union[int, float, str]]]):
+    def _modify_ref_cnt(self, fk: Dict, values: np.ndarray):
         for each in fk:
             target_table = self.get_table(each["target_table_name"])
             fk_pairs: List[Tuple] = each["foreign_key_pairs"]
             local_idx = [each[0] for each in fk_pairs]
-            val_list = []
-            for val in values:
-                val_list.append([val[i] for i in local_idx])
+            val_list = values[:, local_idx]
             target_table.modify_ref_cnt(val_list, 1)
 
     @require_using_db
-    def insert(self, rel_name: str, values: List[List[Union[int, float, str]]]):
+    def insert(self, rel_name: str, values: np.ndarray):
         if (rel_name not in self._tables):
             raise TableNotExistsError(rel_name)
         table = self._tables[rel_name]
@@ -169,9 +166,8 @@ class SM_Manager():
 
         self._check_fk(fk, values)
 
-        for each in values:
-            self._check_insert(table, each)
-            table.insert_records([each])
+        self._check_insert(table, values)
+        table.insert_records(values)
 
         self._modify_ref_cnt(fk, values)
 
@@ -241,9 +237,8 @@ class SM_Manager():
                 dtypes[i] = str
             i += 1
         raw_datas = pd.read_csv(file_name, header=None, dtype=dtypes)
-        values = raw_datas.values.tolist()
-        table.insert_records(values)
-        self._modify_ref_cnt(table.get_fk(), values)
+        table.insert_records(raw_datas.values)
+        self._modify_ref_cnt(table.get_fk(), raw_datas.values)
 
     @require_using_db
     def dump(self, rel_name: str, file_name: str):

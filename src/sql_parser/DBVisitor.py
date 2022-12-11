@@ -252,11 +252,11 @@ class DBVisitor(SQLVisitor):
         
     def visitValue_lists(self, ctx: SQLParser.Value_listsContext):
         value_lists = [each.accept(self) for each in ctx.value_list()]
-        return value_lists
+        return np.array(value_lists, dtype=object)
 
     def visitValue_list(self, ctx: SQLParser.Value_listContext):
         values = [each.accept(self) for each in ctx.value()]
-        return values
+        return np.array(values, dtype=object)
 
     def visitValue(self, ctx: SQLParser.ValueContext):
         if ctx.Integer() is not None:
