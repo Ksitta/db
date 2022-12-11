@@ -462,5 +462,44 @@ class IX_TreeNode:
                 bucket_page = bucket.header.next_page
                 
     
+    def modify_verbose(self, field_values:List[Union[int,float,str]], delta:int) -> List[int]:
+        ''' Add delta to all verbose fileds of the field values.
+            Return the modified verbose values.
+        '''
+        BYTE_ORDER = cf.BYTE_ORDER
+        header = self.header
+        if header.node_type != cf.NODE_TYPE_LEAF:
+            raise NodeRemoveError(f'Trying to remove an entry from a non-leaf node.')
+        (file_id, field_types, field_sizes, node_capacity) = \
+            (self.file_id, self.field_types, self.field_sizes, self.node_capacity)
+        idx = self.search_child_idx(field_values)
+        if idx <= 0 or not IX_TreeNodeEntry.eq(self.get_entry(idx-1).field_values, field_values):
+            return
+        entry = self.get_entry(idx-1)
+        if entry.page_no == cf.INVALID and entry.slot_no == cf.INVALID: return []
+        if entry.slot_no != cf.INVALID:
+            entry.verbose += delta
+            self.set_entry(idx-1, entry)
+            self.sync()
+            return [entry.verbose]
+        res = []
+        bucket_page = entry.page_no
+        while True:
+            bucket = IX_RidBucket.deserialize(pf_manager.read_page(file_id, bucket_page))
+            base_off = bucket.header.size() + bucket.bitmap.size
+            entry_size = 12
+            for i in bucket.bitmap.occupied_slots():
+                off = base_off + i * entry_size + 8
+                verbose, = struct.unpack(f'{BYTE_ORDER}i', bucket.data[off:off+4].tobytes())
+                bucket.data[off:off+4] = np.frombuffer(
+                    struct.pack(f'{BYTE_ORDER}i', verbose+delta), dtype=np.uint8)
+                res.append(verbose + delta)
+            bucket.data_modified = True
+            bucket.sync(self.file_id, bucket_page)
+            if bucket.header.next_page == cf.INVALID: break
+            bucket_page = bucket.header.next_page
+        return res
+                
+    
 if __name__ == '__main__':
     pass

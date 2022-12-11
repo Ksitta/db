@@ -98,6 +98,30 @@ def test_index_remove():
     ix_manager.close_index(file_name, index_no)
     ix_manager.remove_index(file_name, index_no)
     print(f'Index remove passed!')
+    
+
+def test_modify_verbose():
+    file_name = os.path.join(cf.TEST_ROOT, 'test_modify_verbose')
+    index_no = 0
+    ix_manager.create_index(file_name, index_no)
+    index_handle: IX_IndexHandle = ix_manager.open_index(file_name, index_no)
+    meta = {'field_number': 2, 'fields': [(cf.TYPE_INT, 4), (cf.TYPE_INT, 4)]}
+    node_capacity = (cf.PAGE_SIZE-IX_TreeNodeHeader.size()) // 20
+    index_handle.init_meta(meta)
+    N, M = 10, 10 
+    values = np.repeat(np.arange(N), M)
+    np.random.shuffle(values)
+    for i in range(N * M):
+        index_handle.insert_entry([values[i], values[i]*2], RM_Rid(0, i), i)
+    for i in range(N * M):
+        index_handle.modify_verbose([values[i], values[i]*2], 1)
+    index_scan = IX_IndexScan()
+    index_scan.open_scan(index_handle, CompOp.NO)
+    for i, (rid, verbose) in enumerate(index_scan.next()):
+        assert verbose == rid.slot_no + M
+    ix_manager.close_index(file_name, index_no)
+    ix_manager.remove_index(file_name, index_no)
+    print(f'Modify verbose passed!')
 
 
 def test():
@@ -105,3 +129,4 @@ def test():
     test_index_init()
     test_index_insert()
     test_index_remove()
+    test_modify_verbose()

@@ -184,11 +184,11 @@ class IX_IndexHandle:
         self.meta_modified = False
         
     
-    def insert_entry(self, field_value:List[Union[int,float,str]],
+    def insert_entry(self, field_values:List[Union[int,float,str]],
             rid:RM_Rid, verbose:int=0) -> None:
         ''' Insert an entry to the index.
         args:
-            field_value: List[Union[int,float,str]], a list of fields to be indexed.
+            field_values: List[Union[int,float,str]], a list of fields to be indexed.
             rid: RM_Rid, the record rid.
             verbose: int, the verbose field, default = 0.
         '''
@@ -198,13 +198,13 @@ class IX_IndexHandle:
         fields = meta['fields']
         field_types = [field[0] for field in fields]
         field_sizes = [field[1] for field in fields]
-        leaf_page, ancestors = self.search_leaf(field_value)
+        leaf_page, ancestors = self.search_leaf(field_values)
         leaf_node = IX_TreeNode.deserialize(self.data_file_id, field_types, field_sizes,
             meta['node_capacity'], pf_manager.read_page(self.data_file_id, leaf_page))
-        leaf_node.insert(field_value, rid.page_no, rid.slot_no, verbose, ancestors)
+        leaf_node.insert(field_values, rid.page_no, rid.slot_no, verbose, ancestors)
     
     
-    def remove_entry(self, field_value:List[Union[int,float,str]], rid:RM_Rid) -> None:
+    def remove_entry(self, field_values:List[Union[int,float,str]], rid:RM_Rid) -> None:
         ''' Remove an entry.
         '''
         if not self.is_opened:
@@ -213,13 +213,13 @@ class IX_IndexHandle:
         fields = meta['fields']
         field_types = [field[0] for field in fields]
         field_sizes = [field[1] for field in fields]
-        leaf_page, _ = self.search_leaf(field_value)
+        leaf_page, _ = self.search_leaf(field_values)
         leaf_node = IX_TreeNode.deserialize(self.data_file_id, field_types, field_sizes,
             meta['node_capacity'], pf_manager.read_page(self.data_file_id, leaf_page))
-        leaf_node.remove(field_value, rid.page_no, rid.slot_no)
+        leaf_node.remove(field_values, rid.page_no, rid.slot_no)
         
     
-    def modify_verbose(self, field_value:List[Union[int,float,str]], delta:int) -> List[int]:
+    def modify_verbose(self, field_values:List[Union[int,float,str]], delta:int) -> List[int]:
         ''' Modify all verbose fields of the field_value in the index.
             Use ONLY when verbose_en is True.
         args:
@@ -227,8 +227,17 @@ class IX_IndexHandle:
         return:
             List[int], the modified verbose values.
         '''
+        if not self.is_opened:
+            raise IndexNotOpenedError(f'Index {self.file_name}.{self.index_no} not opened.')
+        meta = self.meta
+        fields = meta['fields']
+        field_types = [field[0] for field in fields]
+        field_sizes = [field[1] for field in fields]
+        leaf_page, _ = self.search_leaf(field_values)
+        leaf_node = IX_TreeNode.deserialize(self.data_file_id, field_types, field_sizes,
+            meta['node_capacity'], pf_manager.read_page(self.data_file_id, leaf_page))
+        return leaf_node.modify_verbose(field_values, delta)
         
-    
 
 if __name__ == '__main__':
     pass
