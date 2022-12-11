@@ -35,9 +35,15 @@ class IX_IndexHandle:
     def _serialize_meta(meta:dict) -> np.ndarray:
         ''' Serialize meta into np.ndarray[PAGE_SIZE, uint8].
         '''
+        BYTE_ORDER = cf.BYTE_ORDER
         data = np.ndarray(cf.PAGE_SIZE, dtype=np.uint8)
-        data[:12] = np.frombuffer(struct.pack(f'{cf.BYTE_ORDER}iii', meta['field_type'],
-            meta['field_size'], meta['node_capacity']), dtype=np.uint8)
+        field_number, fields, node_capacity = meta['field_number'], meta['fields'], meta['node_capacity']
+        data[:4] = np.frombuffer(struct.pack(f'{BYTE_ORDER}i', field_number), dtype=np.uint8)
+        off = 4
+        for field_type, field_size in fields:
+            data[off:off+8] = np.frombuffer(struct.pack(f'{BYTE_ORDER}ii',
+                field_type, field_size), dtype=np.uint8); off += 8
+        data[off:off+4] = np.frombuffer(struct.pack(f'{BYTE_ORDER}i', node_capacity), dtype=np.uint8)
         return data
         
     
@@ -45,10 +51,14 @@ class IX_IndexHandle:
     def _desetialize_meta(data:np.ndarray) -> dict:
         ''' Deserialize np.ndarray[PAGE_SIZE, uint8] into meta dict.
         '''
-        (field_type, field_size, node_capacity) = \
-            struct.unpack(f'{cf.BYTE_ORDER}iii', data[:12].tobytes())
-        meta = {'field_type': field_type, 'field_size': field_size,
-            'node_capacity': node_capacity}
+        BYTE_ORDER = cf.BYTE_ORDER
+        field_number, = struct.unpack(f'{BYTE_ORDER}i', data[:4].tobytes())
+        fields, off = [], 4
+        for _ in range(field_number):
+            fields.append(struct.unpack(f'{BYTE_ORDER}ii', data[off:off+8].tobytes()))
+            off += 8
+        node_capacity, = struct.unpack(f'{BYTE_ORDER}i', data[off:off+4].tobytes())
+        meta = {'field_number': field_number, 'fields': fields, 'node_capacity': node_capacity}
         return meta
     
 
@@ -57,8 +67,11 @@ class IX_IndexHandle:
         return: int, the page_no of the min leaf node.
         '''
         meta, current_page = self.meta, cf.INDEX_ROOT_PAGE
+        fields = meta['fields']
+        field_types = [field[0] for field in fields]
+        field_sizes = [field[1] for field in fields]
         while True:
-            current_node = IX_TreeNode.deserialize(self.data_file_id, meta['field_type'], meta['field_size'],
+            current_node = IX_TreeNode.deserialize(self.data_file_id, field_types, field_sizes,
                 meta['node_capacity'], pf_manager.read_page(self.data_file_id, current_page))
             if current_node.header.node_type != cf.NODE_TYPE_INTER: break
             current_page = current_node.header.first_child
@@ -72,8 +85,11 @@ class IX_IndexHandle:
         return: int, the page_no of the min leaf node.
         '''
         meta, current_page = self.meta, cf.INDEX_ROOT_PAGE
+        fields = meta['fields']
+        field_types = [field[0] for field in fields]
+        field_sizes = [field[1] for field in fields]
         while True:
-            current_node = IX_TreeNode.deserialize(self.data_file_id, meta['field_type'], meta['field_size'],
+            current_node = IX_TreeNode.deserialize(self.data_file_id, field_types, field_sizes,
                 meta['node_capacity'], pf_manager.read_page(self.data_file_id, current_page))
             if current_node.header.node_type != cf.NODE_TYPE_INTER: break
             entry_number = current_node.header.entry_number
@@ -88,9 +104,12 @@ class IX_IndexHandle:
         return: Tuple[int, Tuple[int]], the page_no of the leaf node and its ancestors.
         '''
         meta, current_page = self.meta, cf.INDEX_ROOT_PAGE
+        fields = meta['fields']
+        field_types = [field[0] for field in fields]
+        field_sizes = [field[1] for field in fields]
         ancestors = []
         while True:
-            current_node = IX_TreeNode.deserialize(self.data_file_id, meta['field_type'], meta['field_size'],
+            current_node = IX_TreeNode.deserialize(self.data_file_id, field_types, field_sizes,
                 meta['node_capacity'], pf_manager.read_page(self.data_file_id, current_page))
             if current_node.header.node_type != cf.NODE_TYPE_INTER: break
             ancestors.append(current_page)
@@ -109,20 +128,22 @@ class IX_IndexHandle:
             meta: dict, data structure = {
                 'field_number': int,                    # MUST, the number of fields to be indexed.
                 'fields': List[Tuple[int,int]],         # MUST, the fields to be indexed.
-                                                          the two ints in each tuple are field_type and field_size.
+                                                          The two ints in each tuple are field_type and field_size.
                                                           field_type must be in {TYPE_INT, TYPE_FLOAT, TYPE_STR},
                                                           field_size must be in {TYPE_INT, TYPE_FLOAT, TYPE_STR}.
-                'verbose_en': bool,                     # MUST, whether to enable verbose field in the index or not.
                 'node_capacity': int,                   # OPTIONAL, will be calculated from fields.
             } TO BE CONTINUED ...
         '''
         if not self.is_opened:
             raise IndexNotOpenedError(f'Index {self.file_name}.{self.index_no} not opened.')
-        (field_type, field_size) = meta['field_type'], meta['field_size']
-        node_capacity = (cf.PAGE_SIZE - IX_TreeNodeHeader.size()) // (field_size + 8)
+        field_number, fields = meta['field_number'], meta['fields']
+        if field_number > (cf.PAGE_SIZE - 8) // 8:
+            raise IndexInitMetaError(f'Index meta overflowed, must be in one page.')
+        total_field_size = np.sum([field[1] for field in fields[:field_number]])
+        node_capacity = (cf.PAGE_SIZE - IX_TreeNodeHeader.size()) // (total_field_size + 12)
         if node_capacity < 2:
             raise IndexInitMetaError(f'Node capacity = {node_capacity} is too small.')
-        meta = {'field_type': field_type, 'field_size': field_size, 'node_capacity': node_capacity}
+        meta = {'field_number': field_number, 'fields': fields[:field_number], 'node_capacity': node_capacity}
         self.meta = meta
         meta_page = IX_IndexHandle._serialize_meta(meta)
         pf_manager.append_page(self.meta_file_id, meta_page)
@@ -131,7 +152,9 @@ class IX_IndexHandle:
         root_page = pf_manager.append_page(self.data_file_id)
         if root_page != cf.INDEX_ROOT_PAGE:
             raise IndexInitMetaError(f'Root node has not been allocated on page {cf.INDEX_ROOT_PAGE}.')
-        root_node = IX_TreeNode(self.data_file_id, meta['field_type'], meta['field_size'],
+        field_types = [field[0] for field in fields[:field_number]]
+        field_sizes = [field[1] for field in fields[:field_number]]
+        root_node = IX_TreeNode(self.data_file_id, field_types, field_sizes,
             meta['node_capacity'], cf.NODE_TYPE_LEAF, cf.INDEX_ROOT_PAGE)
         root_node.sync()
         
@@ -167,15 +190,18 @@ class IX_IndexHandle:
         args:
             field_value: List[Union[int,float,str]], a list of fields to be indexed.
             rid: RM_Rid, the record rid.
-            verbose: int, the verbose field. If verbose_en is False, this arg will be ignored.
+            verbose: int, the verbose field, default = 0.
         '''
         if not self.is_opened:
             raise IndexNotOpenedError(f'Index {self.file_name}.{self.index_no} not opened.')
         meta = self.meta
+        fields = meta['fields']
+        field_types = [field[0] for field in fields]
+        field_sizes = [field[1] for field in fields]
         leaf_page, ancestors = self.search_leaf(field_value)
-        leaf_node = IX_TreeNode.deserialize(self.data_file_id, meta['field_type'], meta['field_size'],
+        leaf_node = IX_TreeNode.deserialize(self.data_file_id, field_types, field_sizes,
             meta['node_capacity'], pf_manager.read_page(self.data_file_id, leaf_page))
-        leaf_node.insert(field_value, rid.page_no, rid.slot_no, ancestors)
+        leaf_node.insert(field_value, rid.page_no, rid.slot_no, verbose, ancestors)
     
     
     def remove_entry(self, field_value:List[Union[int,float,str]], rid:RM_Rid) -> None:
@@ -184,8 +210,11 @@ class IX_IndexHandle:
         if not self.is_opened:
             raise IndexNotOpenedError(f'Index {self.file_name}.{self.index_no} not opened.')
         meta = self.meta
+        fields = meta['fields']
+        field_types = [field[0] for field in fields]
+        field_sizes = [field[1] for field in fields]
         leaf_page, _ = self.search_leaf(field_value)
-        leaf_node = IX_TreeNode.deserialize(self.data_file_id, meta['field_type'], meta['field_size'],
+        leaf_node = IX_TreeNode.deserialize(self.data_file_id, field_types, field_sizes,
             meta['node_capacity'], pf_manager.read_page(self.data_file_id, leaf_page))
         leaf_node.remove(field_value, rid.page_no, rid.slot_no)
         

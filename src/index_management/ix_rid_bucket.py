@@ -1,7 +1,7 @@
 import os
 import struct
 import numpy as np
-from typing import List
+from typing import Tuple, List
 
 import config as cf
 from paged_file.pf_manager import pf_manager
@@ -46,7 +46,7 @@ class IX_RidBucket:
         ''' Init an empty rid bucket
         '''
         header_size = IX_RidBucketHeader.size()
-        capacity = (8*(cf.PAGE_SIZE-header_size)-7) // (8*RM_Rid.size()+1)
+        capacity = (8*(cf.PAGE_SIZE-header_size)-7) // (8*12+1)
         self.header = IX_RidBucketHeader(rid_cnt=0, next_page=cf.INVALID)
         self.bitmap = Bitmap(capacity=capacity)
         bitmap_size = self.bitmap.size
@@ -71,7 +71,7 @@ class IX_RidBucket:
         self.data_modified = True
         
         
-    def insert_rid(self, rid:RM_Rid) -> None:
+    def insert_rid(self, rid:RM_Rid, verbose:int) -> None:
         ''' Insert a rid into the bucket.
         '''
         slot_no = self.bitmap.first_free()
@@ -81,13 +81,14 @@ class IX_RidBucket:
             raise BucketInsertRidError(f'Bucket overflow.')
         header_size = IX_RidBucketHeader.size()
         bitmap_size = self.bitmap.size
-        rid_size = RM_Rid.size()
-        offset = header_size + bitmap_size + slot_no * rid_size
+        entry_size = 12
+        offset = header_size + bitmap_size + slot_no * entry_size
         self.header.rid_cnt += 1
         self.bitmap.set_bit(slot_no, True)
         self.data[:header_size] = self.header.serialize()
         self.data[header_size:header_size+bitmap_size] = self.bitmap.serialize()
-        self.data[offset:offset+rid_size] = rid.serialize()
+        self.data[offset:offset+entry_size] = np.frombuffer(struct.pack(
+            f'{cf.BYTE_ORDER}iii', rid.page_no, rid.slot_no, verbose), dtype=np.uint8)
         self.data_modified = True
         
     
@@ -109,14 +110,14 @@ class IX_RidBucket:
     
     def search_rid(self, page_no:int, slot_no:int) -> int:
         ''' Search the first slot position that contains the rid.
-        return: the rid index, if not found, return INVALID.
+        return: int, the rid index, if not found, return INVALID.
         '''
         BYTE_ORDER = cf.BYTE_ORDER
         idx = cf.INVALID
         base_off = IX_RidBucketHeader.size() + self.bitmap.size
         data = self.data
         for i in self.bitmap.occupied_slots():
-            off = base_off + (i << 3)
+            off = base_off + (i * 12)
             page, slot = struct.unpack(f'{BYTE_ORDER}ii', data[off:off+8].tobytes())
             if page == page_no and slot == slot_no:
                 idx = i
@@ -124,30 +125,27 @@ class IX_RidBucket:
         return idx
         
     
-    def get_all_rids(self) -> List[RM_Rid]:
-        ''' Return a list of all rids.
+    def get_all_rids(self) -> List[Tuple[RM_Rid,int]]:
+        ''' Return a list of all rids and verbose fields.
         '''
-        rid_cnt = self.header.rid_cnt
+        BYTE_ORDER = cf.BYTE_ORDER
         bitmap = self.bitmap
         data = self.data
-        header_size = IX_RidBucketHeader.size()
-        bitmap_size = bitmap.size
-        rid_size = RM_Rid.size()
-        off = header_size + bitmap_size - rid_size
-        rids = []
-        for slot_no in range(bitmap.capacity):
-            off += rid_size
-            if not bitmap.get_bit(slot_no): continue
-            rids.append(RM_Rid.deserialize(data[off:off+rid_size]))
-            if len(rids) >= rid_cnt: break
-        return rids
+        base_off = IX_RidBucketHeader.size() + bitmap.size
+        res = []
+        for i in bitmap.occupied_slots():
+            off = base_off + (i * 12)
+            page_no, slot_no, verbose = struct.unpack(
+                f'{BYTE_ORDER}iii', data[off:off+12].tobytes())
+            res.append((RM_Rid(page_no, slot_no), verbose))
+        return res
         
     
     @staticmethod
     def deserialize(data:np.ndarray):
         bucket = IX_RidBucket()
         header_size = IX_RidBucketHeader.size()
-        capacity = (8*(cf.PAGE_SIZE-header_size)-7) // (8*RM_Rid.size()+1)
+        capacity = (8*(cf.PAGE_SIZE-header_size)-7) // (8*12+1)
         bitmap_size = bucket.bitmap.size
         bucket.header = IX_RidBucketHeader.deserialize(data[:header_size])
         bucket.bitmap = Bitmap.deserialize(capacity, data[header_size:header_size+bitmap_size])

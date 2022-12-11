@@ -18,16 +18,17 @@ def test_index_init():
     index_no = 0
     ix_manager.create_index(file_name, index_no)
     index_handle: IX_IndexHandle = ix_manager.open_index(file_name, index_no)
-    meta = {'field_type': cf.TYPE_INT, 'field_size': cf.SIZE_INT}
-    node_capacity = (cf.PAGE_SIZE-IX_TreeNodeHeader.size()) // (cf.SIZE_INT+8)
+    meta = {'field_number': 2, 'fields': [(cf.TYPE_INT, 4), (cf.TYPE_INT, 4)]}
+    node_capacity = (cf.PAGE_SIZE-IX_TreeNodeHeader.size()) // 20
     index_handle.init_meta(meta)
     read_meta = IX_IndexHandle._desetialize_meta(
         pf_manager.read_page(index_handle.meta_file_id, 0))
-    assert read_meta['field_type'] == cf.TYPE_INT
-    assert read_meta['field_size'] == cf.SIZE_INT
+    assert read_meta['field_number'] == 2
+    fields = read_meta['fields']
+    assert fields[0] == (cf.TYPE_INT, 4) and fields[1] == (cf.TYPE_INT, 4)
     assert read_meta['node_capacity'] == node_capacity
-    root_node = IX_TreeNode.deserialize(index_handle.data_file_id, cf.TYPE_INT, cf.SIZE_INT,
-        node_capacity, pf_manager.read_page(index_handle.data_file_id, cf.INDEX_ROOT_PAGE))
+    root_node = IX_TreeNode.deserialize(index_handle.data_file_id, [cf.TYPE_INT, cf.TYPE_INT],
+        [4, 4], node_capacity, pf_manager.read_page(index_handle.data_file_id, cf.INDEX_ROOT_PAGE))
     header = root_node.header
     assert header.node_type == cf.NODE_TYPE_LEAF
     assert header.page_no == cf.INDEX_ROOT_PAGE
@@ -45,21 +46,25 @@ def test_index_insert():
     index_no = 0
     ix_manager.create_index(file_name, index_no)
     index_handle: IX_IndexHandle = ix_manager.open_index(file_name, index_no)
-    meta = {'field_type': cf.TYPE_INT, 'field_size': cf.SIZE_INT}
+    meta = {'field_number': 2, 'fields': [(cf.TYPE_INT, 4), (cf.TYPE_INT, 4)]}
+    node_capacity = (cf.PAGE_SIZE-IX_TreeNodeHeader.size()) // 20
     index_handle.init_meta(meta)
     N, M = 100, 10
     values = np.repeat(np.arange(N), M)
     np.random.shuffle(values)
     for i in range(N * M):
-        index_handle.insert_entry(values[i], RM_Rid(0, i))
-    scanned = np.zeros_like(values) - 1
+        index_handle.insert_entry([values[i], values[i]*2], RM_Rid(0, i), i)
+    scanned1 = np.zeros_like(values) - 1
+    scanned2 = scanned1.copy()
     index_scan = IX_IndexScan()
     index_scan.open_scan(index_handle, CompOp.NO)
-    for i, rid in enumerate(index_scan.next()):
-        scanned[i] = rid.slot_no
-    scanned = sorted(scanned)
-    assert np.min(np.arange(N*M) == scanned) == True
-    
+    for i, (rid, verbose) in enumerate(index_scan.next()):
+        scanned1[i] = rid.slot_no
+        scanned2[i] = verbose
+    scanned1 = sorted(scanned1)
+    scanned2 = sorted(scanned2)
+    assert np.min(np.arange(N*M) == scanned1) == True
+    assert np.min(np.arange(N*M) == scanned2) == True
     ix_manager.close_index(file_name, index_no)
     ix_manager.remove_index(file_name, index_no)
     print(f'Index insert passed!')
@@ -70,23 +75,26 @@ def test_index_remove():
     index_no = 0
     ix_manager.create_index(file_name, index_no)
     index_handle: IX_IndexHandle = ix_manager.open_index(file_name, index_no)
-    meta = {'field_type': cf.TYPE_INT, 'field_size': cf.SIZE_INT}
+    meta = {'field_number': 2, 'fields': [(cf.TYPE_INT, 4), (cf.TYPE_INT, 4)]}
     index_handle.init_meta(meta)
     N, M = 10, 100
     values = np.repeat(np.arange(N), M)
     np.random.shuffle(values)
     for i in range(N * M):
-        index_handle.insert_entry(values[i], RM_Rid(0, i))
+        index_handle.insert_entry([values[i], values[i]*2], RM_Rid(0, i), i)
     for i in range((N*M)//2, N*M):
-        index_handle.remove_entry(values[i], RM_Rid(0, i))
-    scanned = np.zeros((N*M)//2, dtype=values.dtype) - 1
+        index_handle.remove_entry([values[i], values[i]*2], RM_Rid(0, i))
+    scanned1 = np.zeros((N*M)//2, dtype=values.dtype) - 1
+    scanned2 = scanned1.copy()
     index_scan = IX_IndexScan()
     index_scan.open_scan(index_handle, CompOp.NO)
-    for i, rid in enumerate(index_scan.next()):
-        scanned[i] = rid.slot_no
-    scanned = sorted(scanned)
-    assert np.min(np.arange((N*M) // 2) == scanned) == True
-    
+    for i, (rid, verbose) in enumerate(index_scan.next()):
+        scanned1[i] = rid.slot_no
+        scanned2[i] = verbose
+    scanned1 = sorted(scanned1)
+    scanned2 = sorted(scanned2)
+    assert np.min(np.arange((N*M) // 2) == scanned1) == True
+    assert np.min(np.arange((N*M) // 2) == scanned2) == True
     ix_manager.close_index(file_name, index_no)
     ix_manager.remove_index(file_name, index_no)
     print(f'Index remove passed!')
