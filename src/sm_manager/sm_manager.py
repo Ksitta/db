@@ -149,13 +149,13 @@ class SM_Manager():
             if (len(res) == 0):
                 raise ForeignKeyNotExistsError()
 
-    def _modify_ref_cnt(self, fk: Dict, values: np.ndarray):
+    def _modify_ref_cnt(self, fk: Dict, values: np.ndarray, delta: int):
         for each in fk:
             target_table = self.get_table(each["target_table_name"])
             fk_pairs: List[Tuple] = each["foreign_key_pairs"]
             local_idx = [each[0] for each in fk_pairs]
             val_list = values[:, local_idx]
-            target_table.modify_ref_cnt(val_list, 1)
+            target_table.modify_ref_cnt(val_list, delta)
 
     @require_using_db
     def insert(self, rel_name: str, values: np.ndarray):
@@ -169,7 +169,7 @@ class SM_Manager():
         self._check_insert(table, values)
         table.insert_records(values)
 
-        self._modify_ref_cnt(fk, values)
+        self._modify_ref_cnt(fk, values, 1)
 
     @require_using_db
     def delete(self, rel_name: str, records: RecordList):
@@ -178,10 +178,14 @@ class SM_Manager():
         table: Table = self._tables[rel_name]
 
         for each in records.records:
-            ref_cnt = table.get_ref_cnt(np.array(each.data, dtype=object))
+            ref_cnt = table.get_ref_cnt(each.data)
             if(ref_cnt != 0):
                 raise ReferenceCountNotZeroError()
             table.delete_record(each)
+        
+        fk = table.get_fk()
+        vals = np.array([each.data for each in records.records], dtype=object)
+        self._modify_ref_cnt(fk, vals, -1)
 
     @require_using_db
     def update(self, rel_name: str, records: RecordList, set_clause: List):
@@ -189,21 +193,22 @@ class SM_Manager():
             raise TableNotExistsError(rel_name)
         up_list: List[Tuple(int, Union[int, float, str, None])] = []
         table = self._tables[rel_name]
-
+        fk = table.get_fk()
         for each in set_clause:
             idx = table.get_column_idx(each[0])
             up_list.append((idx, each[1]))
 
         for each in records.records:
-            ref_cnt = table.get_ref_cnt(np.array(each.data, dtype=object))
+            ref_cnt = table.get_ref_cnt(each.data)
             if(ref_cnt != 0):
                 raise ReferenceCountNotZeroError()
             for idx, val in up_list:
                 each.data[idx] = val
-        vals = np.array([each.data for each in records.records], dtype=object)
-        self._check_fk(table.get_fk(), vals)
-        self._check_insert(table, vals)
-        for each in records.records:
+            np_array = np.array([each], dtype=object)
+            self._check_fk(table.get_fk(), np_array)
+            self._check_insert(table, np_array)
+            self._modify_ref_cnt(fk, np_array, -1)
+            self.delete
             table.update_record(each.rid, each)
 
     @require_using_db
@@ -241,7 +246,7 @@ class SM_Manager():
             i += 1
         raw_datas = pd.read_csv(file_name, header=None, dtype=dtypes)
         table.insert_records(raw_datas.values)
-        self._modify_ref_cnt(table.get_fk(), raw_datas.values)
+        self._modify_ref_cnt(table.get_fk(), raw_datas.values, 1)
 
     @require_using_db
     def dump(self, rel_name: str, file_name: str):

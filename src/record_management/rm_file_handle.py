@@ -284,7 +284,7 @@ class RM_FileHandle:
         return RM_Record(rid=rid, data=record_data)
     
 
-    def pack_record(self, fields:List[Union[int, float, str]]) -> np.ndarray:
+    def pack_record(self, fields:np.ndarray) -> np.ndarray:
         ''' Pack the fields to record data by columns info in meta.
         args:
             fields: List[Union[int, float, str]], len >= column_number.
@@ -313,7 +313,7 @@ class RM_FileHandle:
         return data
     
     
-    def unpack_record(self, data:np.ndarray) -> List[Union[int, float, str]]:
+    def unpack_record(self, data:np.ndarray) -> np.ndarray:
         ''' Unpack the record data into fileds by columns info in meta.
         args:
             data: np.ndarray[>=record_size, uint8], the record data.
@@ -337,7 +337,7 @@ class RM_FileHandle:
                 fields.append(str(s, encoding='utf-8').strip('\0'))
             else: raise UnpackRecordError(f'Type {col_type} is invalid.')
             off += col_size
-        return fields
+        return np.array(fields, dtype=object)
         
     
     def insert_record(self, data:np.ndarray) -> RM_Rid:

@@ -294,12 +294,18 @@ class Table():
     def delete_record(self, record: Record):
         self._file_handle.remove_record(record.rid)
         for each in self._index_handles:
+            val = [record.data[i] for i in int_to_list_int(each)]
             self._index_handles[each].remove_entry(
-                record.data[each], record.rid)
+                val, record.rid)
 
     def update_record(self, rid: RM_Rid, record: Record):
         data = self._file_handle.pack_record(record.data)
         self._file_handle.update_record(rid, data)
+        for index_no in self._index_handles:
+            column_idx = int_to_list_int(index_no)
+            handle = self._index_handles[index_no]
+            vals = record.data[column_idx]
+            handle.insert_entry(vals[i], rids[i])
 
     def load_all_records(self) -> List[Record]:
         scaner: RM_FileScan = RM_FileScan()
