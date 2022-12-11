@@ -114,12 +114,6 @@ class SM_Manager():
             fk_dict.pop("local_idents")
             fk_dict.pop("target_idents")
         Table.create_table(rel_name, columns, pk_idx, fk)
-        for each in fk:
-            target_table = self.get_table(each["target_table_name"])
-            records = target_table.load_all_records()
-            fk_pairs: List[Tuple] = each["foreign_key_pairs"]
-            for pair in fk_pairs:
-                target_table.create_index(pair[1], records)
         self._tables[rel_name] = Table(rel_name)
 
     @require_using_db

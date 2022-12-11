@@ -202,12 +202,11 @@ class Table():
             idx_meta['field_number'] = len(pk)
             idx_meta['fields'] = [
                 (columns[each].type, columns[each].size) for each in pk]
-            idx_meta['verbose_en'] = True
             idx_handle.init_meta(idx_meta)
             idx_handle.sync_meta()
             ix_manager.close_index(name, index_no)
 
-    def create_index(self, column_idx: List[int], records: List[Record], verbose_en):
+    def create_index(self, column_idx: List[int], records: List[Record]):
         index_no = list_int_to_int(column_idx)
         if (index_no in self._index_handles):
             return
@@ -217,7 +216,6 @@ class Table():
         idx_meta['field_number'] = len(column_idx)
         idx_meta['fields'] = [
             (self._columns[each].type, self._columns[each].size) for each in column_idx]
-        idx_meta['verbose_en'] = verbose_en
         idx_handle.init_meta(idx_meta)
         idx_handle.sync_meta()
         self._index_handles[index_no] = idx_handle
