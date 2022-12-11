@@ -178,7 +178,7 @@ class SM_Manager():
         table: Table = self._tables[rel_name]
 
         for each in records.records:
-            ref_cnt = table.get_ref_cnt(each.data)
+            ref_cnt = table.get_ref_cnt(np.array(each.data, dtype=object))
             if(ref_cnt != 0):
                 raise ReferenceCountNotZeroError()
             table.delete_record(each)
@@ -195,12 +195,15 @@ class SM_Manager():
             up_list.append((idx, each[1]))
 
         for each in records.records:
-            ref_cnt = table.get_ref_cnt(each.data)
+            ref_cnt = table.get_ref_cnt(np.array(each.data, dtype=object))
             if(ref_cnt != 0):
                 raise ReferenceCountNotZeroError()
             for idx, val in up_list:
                 each.data[idx] = val
-            self._check_insert(table, each.data)
+        vals = np.array([each.data for each in records.records], dtype=object)
+        self._check_fk(table.get_fk(), vals)
+        self._check_insert(table, vals)
+        for each in records.records:
             table.update_record(each.rid, each)
 
     @require_using_db
