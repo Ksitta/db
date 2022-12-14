@@ -259,6 +259,7 @@ class IX_TreeNode:
     def deserialize(file_id:int, field_types:int, field_sizes:int, node_capacity:int, data:np.ndarray):
         ''' Deserialize a data page into tree node.
         '''
+        cf.NODE_DESERIALIZE_CNT += 1
         node = IX_TreeNode(file_id, field_types, field_sizes, node_capacity, 0, 0)
         node.header = IX_TreeNodeHeader.deserialize(data[:IX_TreeNodeHeader.size()])
         node.data[:] = data[:]
@@ -268,6 +269,7 @@ class IX_TreeNode:
     def serialize(self) -> np.ndarray:
         ''' Serialize this tree node into a data page.
         '''
+        cf.NODE_SERIALIZE_CNT += 1
         return self.data.copy()
     
 

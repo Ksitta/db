@@ -77,13 +77,23 @@ def test_index_remove():
     index_handle: IX_IndexHandle = ix_manager.open_index(file_name, index_no)
     meta = {'field_number': 2, 'fields': [(cf.TYPE_INT, 4), (cf.TYPE_INT, 4)]}
     index_handle.init_meta(meta)
-    N, M = 10, 100
+    N, M = 100, 100
     values = np.repeat(np.arange(N), M)
     np.random.shuffle(values)
+    tic = time.perf_counter()
     for i in range(N * M):
         index_handle.insert_entry([values[i], values[i]*2], RM_Rid(0, i), i)
+    toc = time.perf_counter()
+    print(f'### insert time cost: {(toc-tic)*1000:.3f} ms')
+    print(f'NODE_SERIALIZE_CNT: {cf.NODE_SERIALIZE_CNT}')
+    print(f'NODE_DESERIALIZE_CNT: {cf.NODE_DESERIALIZE_CNT}')
+    tic = time.perf_counter()
     for i in range((N*M)//2, N*M):
         index_handle.remove_entry([values[i], values[i]*2], RM_Rid(0, i))
+    toc = time.perf_counter()
+    print(f'### remove time cost: {(toc-tic)*1000:.3f} ms')
+    print(f'NODE_SERIALIZE_CNT: {cf.NODE_SERIALIZE_CNT}')
+    print(f'NODE_DESERIALIZE_CNT: {cf.NODE_DESERIALIZE_CNT}')
     scanned1 = np.zeros((N*M)//2, dtype=values.dtype) - 1
     scanned2 = scanned1.copy()
     index_scan = IX_IndexScan()
@@ -126,7 +136,7 @@ def test_modify_verbose():
 
 def test():
     print(f'-------- Test index management --------')
-    test_index_init()
-    test_index_insert()
+    # test_index_init()
+    # test_index_insert()
     test_index_remove()
-    test_modify_verbose()
+    # test_modify_verbose()
