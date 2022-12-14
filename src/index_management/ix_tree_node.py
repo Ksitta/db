@@ -6,8 +6,12 @@ from typing import Tuple, List, Dict, Union
 import config as cf
 from paged_file.pf_manager import pf_manager
 from record_management.rm_rid import RM_Rid
-from index_management.ix_rid_bucket import IX_RidBucket
+from index_management.ix_rid_bucket import IX_RidBucket, bucket_cache
 from errors.err_index_management import *
+
+
+# file_id -> Dict[int, IX_TreeNode]
+node_cache:Dict[int, Dict] = {}
 
 
 class IX_TreeNodeHeader:
@@ -159,7 +163,10 @@ class IX_TreeNodeEntry:
         bucket_page = self.page_no
         res = []
         while bucket_page != cf.INVALID:
-            bucket = IX_RidBucket.deserialize(pf_manager.read_page(data_file_id, bucket_page))
+            bucket = bucket_cache[data_file_id].get(bucket_page)
+            if bucket is None:
+                bucket = IX_RidBucket.deserialize(pf_manager.read_page(data_file_id, bucket_page))
+                bucket_cache[data_file_id][bucket_page] = bucket
             res.extend(bucket.get_all_rids())
             bucket_page = bucket.header.next_page
         return res
@@ -259,7 +266,6 @@ class IX_TreeNode:
     def deserialize(file_id:int, field_types:int, field_sizes:int, node_capacity:int, data:np.ndarray):
         ''' Deserialize a data page into tree node.
         '''
-        cf.NODE_DESERIALIZE_CNT += 1
         node = IX_TreeNode(file_id, field_types, field_sizes, node_capacity, 0, 0)
         node.header = IX_TreeNodeHeader.deserialize(data[:IX_TreeNodeHeader.size()])
         node.data[:] = data[:]
@@ -269,7 +275,6 @@ class IX_TreeNode:
     def serialize(self) -> np.ndarray:
         ''' Serialize this tree node into a data page.
         '''
-        cf.NODE_SERIALIZE_CNT += 1
         return self.data.copy()
     
 
@@ -277,8 +282,8 @@ class IX_TreeNode:
         ''' Sync this node into disk.
         '''
         if not self.data_modified: return
-        pf_manager.write_page(self.file_id, self.header.page_no, self.serialize())
         self.data_modified = False
+        node_cache[self.file_id][self.header.page_no] = self
         
     
     def print_subtree(self, depth=0):
@@ -289,9 +294,12 @@ class IX_TreeNode:
                 print(f' '*4*(depth+1), end=''); print(line)
         if self.header.node_type == cf.NODE_TYPE_INTER:
             for page_no in [self.header.first_child] + [x.page_no for x in self.get_all_entries()]:
-                node = IX_TreeNode.deserialize(self.file_id,
-                    self.field_types, self.field_sizes, self.node_capacity,
-                    pf_manager.read_page(self.file_id, page_no))
+                node = node_cache[self.file_id].get(page_no)
+                if node is None:
+                    node = IX_TreeNode.deserialize(self.file_id,
+                        self.field_types, self.field_sizes, self.node_capacity,
+                        pf_manager.read_page(self.file_id, page_no))
+                    node_cache[self.file_id][page_no] = node
                 node.print_subtree(depth+1)
         
     
@@ -334,7 +342,10 @@ class IX_TreeNode:
                 elif entry.slot_no == cf.INVALID:
                     bucket_page = entry.page_no
                     while True:     # find the first free bucket
-                        bucket = IX_RidBucket.deserialize(pf_manager.read_page(file_id, bucket_page))
+                        bucket = bucket_cache[file_id].get(bucket_page)
+                        if bucket is None:
+                            bucket = IX_RidBucket.deserialize(pf_manager.read_page(file_id, bucket_page))
+                            bucket_cache[file_id][bucket_page] = bucket
                         if bucket.free_space() > 0: break
                         if bucket.header.next_page == cf.INVALID:   # alloc a new bucket
                             new_page = pf_manager.append_page(file_id)
@@ -395,8 +406,11 @@ class IX_TreeNode:
             new_node.header.prev_sib = header.page_no
             new_node.header.next_sib = header.next_sib
             if header.next_sib != cf.INVALID:
-                next_node = IX_TreeNode.deserialize(file_id, field_types, field_sizes,
-                    node_capacity, pf_manager.read_page(file_id, header.next_sib))
+                next_node = node_cache[file_id].get(header.next_sib)
+                if next_node is None:
+                    next_node = IX_TreeNode.deserialize(file_id, field_types, field_sizes,
+                        node_capacity, pf_manager.read_page(file_id, header.next_sib))
+                    node_cache[file_id][header.next_sib] = next_node
                 next_node.header.prev_sib = new_page
                 next_node.data_modified = True
                 next_node.sync()
@@ -424,8 +438,11 @@ class IX_TreeNode:
                 new_root.data_modified = True
                 new_root.sync()
             else: # current node is not root, insert upward recursively
-                up_node = IX_TreeNode.deserialize(file_id, field_types, field_sizes,
-                    node_capacity, pf_manager.read_page(file_id, ancestors[-1]))
+                up_node = node_cache[file_id].get(ancestors[-1])
+                if up_node is None:
+                    up_node = IX_TreeNode.deserialize(file_id, field_types, field_sizes,
+                        node_capacity, pf_manager.read_page(file_id, ancestors[-1]))
+                    node_cache[file_id][ancestors[-1]] = up_node
                 up_node.insert(up_field_values, up_page_no, up_slot_no, up_verbose, ancestors[:-1])
         self.data[:header_size] = header.serialize()
         self.data_modified = True
@@ -454,7 +471,10 @@ class IX_TreeNode:
         elif entry.slot_no == cf.INVALID:   # point to a rid bucket
             bucket_page = entry.page_no
             while True:
-                bucket = IX_RidBucket.deserialize(pf_manager.read_page(file_id, bucket_page))
+                bucket = bucket_cache[file_id].get(bucket_page)
+                if bucket is None:
+                    bucket = IX_RidBucket.deserialize(pf_manager.read_page(file_id, bucket_page))
+                    bucket_cache[file_id][bucket_page] = bucket
                 slot = bucket.search_rid(page_no, slot_no)
                 if slot != cf.INVALID:
                     bucket.remove_rid(slot)
@@ -487,7 +507,10 @@ class IX_TreeNode:
         res = []
         bucket_page = entry.page_no
         while True:
-            bucket = IX_RidBucket.deserialize(pf_manager.read_page(file_id, bucket_page))
+            bucket = bucket_cache[file_id].get(bucket_page)
+            if bucket is None:
+                bucket = IX_RidBucket.deserialize(pf_manager.read_page(file_id, bucket_page))
+                bucket_cache[file_id][bucket_page] = bucket
             base_off = bucket.header.size() + bucket.bitmap.size
             entry_size = 12
             for i in bucket.bitmap.occupied_slots():
@@ -501,6 +524,14 @@ class IX_TreeNode:
             if bucket.header.next_page == cf.INVALID: break
             bucket_page = bucket.header.next_page
         return res
+    
+
+def flush_node_cache(file_id:int):
+    ''' Sync all nodes in node cache to pf_manager.
+    '''
+    for page_id, node in node_cache[file_id].items():
+        pf_manager.write_page(file_id, page_id, node.serialize())
+    node_cache.pop(file_id, None)
                 
     
 if __name__ == '__main__':

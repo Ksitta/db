@@ -32,7 +32,3 @@ INDEX_ROOT_PAGE = 0
 
 # unit test
 TEST_ROOT = f'./test_root'
-
-# debug
-NODE_SERIALIZE_CNT = 0
-NODE_DESERIALIZE_CNT = 0

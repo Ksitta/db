@@ -10,6 +10,10 @@ from utils.bitmap import Bitmap
 from errors.err_index_management import *
 
 
+# file_id -> Dict[Tuple[int,int], IX_RidBucket]
+bucket_cache = {}
+
+
 class IX_RidBucketHeader:
     
     
@@ -163,9 +167,16 @@ class IX_RidBucket:
         ''' Sync data to disk.
         '''
         if not self.data_modified: return
-        pf_manager.write_page(file_id, page_id, self.data)
         self.data_modified = False
+        bucket_cache[file_id][page_id] = self
+        
     
+def flush_bucket_cache(file_id:int):
+    ''' Flush bucket pages to pf_manager.
+    '''
+    for page_id, bucket in bucket_cache[file_id].items():
+        pf_manager.write_page(file_id, page_id, bucket.serialize())
+    bucket_cache.pop(file_id, None)
     
 if __name__ == '__main__':
     pass
