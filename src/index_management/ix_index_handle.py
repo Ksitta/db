@@ -6,7 +6,7 @@ from typing import Tuple, List, Dict, Set, Union
 import config as cf
 from paged_file.pf_manager import pf_manager
 from record_management.rm_rid import RM_Rid
-from index_management.ix_tree_node import IX_TreeNodeHeader, IX_TreeNode
+from index_management.ix_tree_node import IX_TreeNodeHeader, IX_TreeNode, node_cache
 from errors.err_index_management import *
 
 
@@ -62,46 +62,52 @@ class IX_IndexHandle:
         return meta
     
 
-    def min_leaf(self) -> int:
+    def min_leaf(self) -> IX_TreeNode:
         ''' Search the min leaf node.
-        return: int, the page_no of the min leaf node.
+        return: IX_TreeNode, the min leaf node.
         '''
         meta, current_page = self.meta, cf.INDEX_ROOT_PAGE
         fields = meta['fields']
         field_types = [field[0] for field in fields]
         field_sizes = [field[1] for field in fields]
         while True:
-            current_node = IX_TreeNode.deserialize(self.data_file_id, field_types, field_sizes,
-                meta['node_capacity'], pf_manager.read_page(self.data_file_id, current_page))
+            current_node = node_cache[self.data_file_id].get(current_page)
+            if current_node is None:
+                current_node = IX_TreeNode.deserialize(self.data_file_id, field_types, field_sizes,
+                    meta['node_capacity'], pf_manager.read_page(self.data_file_id, current_page))
+                node_cache[self.data_file_id][current_page] = current_node
             if current_node.header.node_type != cf.NODE_TYPE_INTER: break
             current_page = current_node.header.first_child
         if current_node.header.node_type != cf.NODE_TYPE_LEAF:
             raise IndexSearchError(f'Failed to find the min leaf node.')
-        return current_page
+        return current_node
     
     
-    def max_leaf(self) -> int:
+    def max_leaf(self) -> IX_TreeNode:
         ''' Search the max leaf node.
-        return: int, the page_no of the min leaf node.
+        return: IX_TreeNode, the max leaf node.
         '''
         meta, current_page = self.meta, cf.INDEX_ROOT_PAGE
         fields = meta['fields']
         field_types = [field[0] for field in fields]
         field_sizes = [field[1] for field in fields]
         while True:
-            current_node = IX_TreeNode.deserialize(self.data_file_id, field_types, field_sizes,
-                meta['node_capacity'], pf_manager.read_page(self.data_file_id, current_page))
+            current_node = node_cache[self.data_file_id].get(current_page)
+            if current_node is None:
+                current_node = IX_TreeNode.deserialize(self.data_file_id, field_types, field_sizes,
+                    meta['node_capacity'], pf_manager.read_page(self.data_file_id, current_page))
+                node_cache[self.data_file_id][current_page] = current_node
             if current_node.header.node_type != cf.NODE_TYPE_INTER: break
             entry_number = current_node.header.entry_number
             current_page = current_node.get_entry(entry_number-1).page_no
         if current_node.header.node_type != cf.NODE_TYPE_LEAF:
             raise IndexSearchError(f'Failed to find the min leaf node.')
-        return current_page
+        return current_node
         
     
-    def search_leaf(self, field_value:List[Union[int,float,str]]) -> Tuple[int, Tuple[int]]:
+    def search_leaf(self, field_value:List[Union[int,float,str]]) -> Tuple[IX_TreeNode, Tuple[int]]:
         ''' Search the leaf node by a field value in this index.
-        return: Tuple[int, Tuple[int]], the page_no of the leaf node and its ancestors.
+        return: Tuple[IX_TreeNode, Tuple[int]], the leaf node and its ancestors' page numbers.
         '''
         meta, current_page = self.meta, cf.INDEX_ROOT_PAGE
         fields = meta['fields']
@@ -109,8 +115,11 @@ class IX_IndexHandle:
         field_sizes = [field[1] for field in fields]
         ancestors = []
         while True:
-            current_node = IX_TreeNode.deserialize(self.data_file_id, field_types, field_sizes,
-                meta['node_capacity'], pf_manager.read_page(self.data_file_id, current_page))
+            current_node = node_cache[self.data_file_id].get(current_page)
+            if current_node is None:
+                current_node = IX_TreeNode.deserialize(self.data_file_id, field_types, field_sizes,
+                    meta['node_capacity'], pf_manager.read_page(self.data_file_id, current_page))
+                node_cache[self.data_file_id][current_page] = current_node
             if current_node.header.node_type != cf.NODE_TYPE_INTER: break
             ancestors.append(current_page)
             child_idx = current_node.search_child_idx(field_value)
@@ -119,7 +128,7 @@ class IX_IndexHandle:
             else: current_page = current_node.get_entry(child_idx-1).page_no
         if current_node.header.node_type != cf.NODE_TYPE_LEAF:
             raise IndexSearchError(f'Failed to find the leaf node.')
-        return current_page, tuple(ancestors)
+        return current_node, tuple(ancestors)
         
     
     def init_meta(self, meta:dict) -> None:
@@ -194,13 +203,7 @@ class IX_IndexHandle:
         '''
         if not self.is_opened:
             raise IndexNotOpenedError(f'Index {self.file_name}.{self.index_no} not opened.')
-        meta = self.meta
-        fields = meta['fields']
-        field_types = [field[0] for field in fields]
-        field_sizes = [field[1] for field in fields]
-        leaf_page, ancestors = self.search_leaf(field_values)
-        leaf_node = IX_TreeNode.deserialize(self.data_file_id, field_types, field_sizes,
-            meta['node_capacity'], pf_manager.read_page(self.data_file_id, leaf_page))
+        leaf_node, ancestors = self.search_leaf(field_values)
         leaf_node.insert(field_values, rid.page_no, rid.slot_no, verbose, ancestors)
     
     
@@ -209,13 +212,7 @@ class IX_IndexHandle:
         '''
         if not self.is_opened:
             raise IndexNotOpenedError(f'Index {self.file_name}.{self.index_no} not opened.')
-        meta = self.meta
-        fields = meta['fields']
-        field_types = [field[0] for field in fields]
-        field_sizes = [field[1] for field in fields]
-        leaf_page, _ = self.search_leaf(field_values)
-        leaf_node = IX_TreeNode.deserialize(self.data_file_id, field_types, field_sizes,
-            meta['node_capacity'], pf_manager.read_page(self.data_file_id, leaf_page))
+        leaf_node, _ = self.search_leaf(field_values)
         leaf_node.remove(field_values, rid.page_no, rid.slot_no)
         
     
@@ -229,13 +226,7 @@ class IX_IndexHandle:
         '''
         if not self.is_opened:
             raise IndexNotOpenedError(f'Index {self.file_name}.{self.index_no} not opened.')
-        meta = self.meta
-        fields = meta['fields']
-        field_types = [field[0] for field in fields]
-        field_sizes = [field[1] for field in fields]
-        leaf_page, _ = self.search_leaf(field_values)
-        leaf_node = IX_TreeNode.deserialize(self.data_file_id, field_types, field_sizes,
-            meta['node_capacity'], pf_manager.read_page(self.data_file_id, leaf_page))
+        leaf_node, _ = self.search_leaf(field_values)
         return leaf_node.modify_verbose(field_values, delta)
         
 

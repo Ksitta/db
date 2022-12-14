@@ -6,7 +6,7 @@ from utils.enums import CompOp
 from paged_file.pf_manager import pf_manager
 from record_management.rm_rid import RM_Rid
 from index_management.ix_index_handle import IX_IndexHandle
-from index_management.ix_tree_node import IX_TreeNode, IX_TreeNodeEntry
+from index_management.ix_tree_node import IX_TreeNode, IX_TreeNodeEntry, node_cache
 from errors.err_index_management import *
 
 
@@ -51,30 +51,29 @@ class IX_IndexScan:
         data_file_id = index_handle.data_file_id
         comp_op, field_values = self.comp_op, self.field_values
         if comp_op == CompOp.NO or comp_op == CompOp.NE:
-            current_page = index_handle.min_leaf()
+            current_node = index_handle.min_leaf()
             while True:
-                current_node = IX_TreeNode.deserialize(index_handle.data_file_id, field_types,
-                    field_sizes, node_capacity, pf_manager.read_page(data_file_id, current_page))
                 for entry in current_node.get_all_entries():
                     if comp_op == CompOp.NE and IX_TreeNodeEntry.eq(entry.field_values, field_values):
                         continue
                     for item in entry.get_all_rids(data_file_id): yield item
                 current_page = current_node.header.next_sib
                 if current_page == cf.INVALID: break
+                current_node = node_cache[data_file_id].get(current_page)
+                if current_node is None:
+                    current_node = IX_TreeNode.deserialize(index_handle.data_file_id, field_types,
+                        field_sizes, node_capacity, pf_manager.read_page(data_file_id, current_page))
+                    node_cache[data_file_id][current_page] = current_node
         elif comp_op == CompOp.EQ:
-            current_page, _ = index_handle.search_leaf(field_values)
-            current_node = IX_TreeNode.deserialize(index_handle.data_file_id, field_types, field_sizes,
-                node_capacity, pf_manager.read_page(data_file_id, current_page))
+            current_node, _ = index_handle.search_leaf(field_values)
             child_idx = current_node.search_child_idx(field_values)
             if child_idx == 0 or not IX_TreeNodeEntry.eq(
                 current_node.get_entry(child_idx-1).field_values, field_values):
                 return None
             for item in current_node.get_entry(child_idx-1).get_all_rids(data_file_id): yield item
         elif comp_op == CompOp.LT or comp_op == CompOp.LE:
-            current_page = index_handle.min_leaf()
+            current_node = index_handle.min_leaf()
             while True:
-                current_node = IX_TreeNode.deserialize(index_handle.data_file_id, field_types,
-                    field_sizes, node_capacity, pf_manager.read_page(data_file_id, current_page))
                 for entry in current_node.get_all_entries():
                     if not IX_TreeNodeEntry.le(entry.field_values, field_values): return None
                     if comp_op == CompOp.LT and IX_TreeNodeEntry.eq(
@@ -82,11 +81,14 @@ class IX_IndexScan:
                     for item in entry.get_all_rids(data_file_id): yield item
                 current_page = current_node.header.next_sib
                 if current_page == cf.INVALID: break
+                current_node = node_cache[data_file_id].get(current_page)
+                if current_node is None:
+                    current_node = IX_TreeNode.deserialize(index_handle.data_file_id, field_types,
+                        field_sizes, node_capacity, pf_manager.read_page(data_file_id, current_page))
+                    node_cache[data_file_id][current_page] = current_node
         elif comp_op == CompOp.GT or comp_op == CompOp.GE:
-            current_page, _ = index_handle.search_leaf(field_values)
+            current_node, _ = index_handle.search_leaf(field_values)
             while True:
-                current_node = IX_TreeNode.deserialize(index_handle.data_file_id, field_types,
-                    field_sizes, node_capacity, pf_manager.read_page(data_file_id, current_page))
                 for entry in current_node.get_all_entries():
                     if IX_TreeNodeEntry.lt(entry.field_values, field_values): continue
                     if comp_op == CompOp.GT and IX_TreeNodeEntry.eq(
@@ -94,6 +96,11 @@ class IX_IndexScan:
                     for item in entry.get_all_rids(data_file_id): yield item
                 current_page = current_node.header.next_sib
                 if current_page == cf.INVALID: break
+                current_node = node_cache[data_file_id].get(current_page)
+                if current_node is None:
+                    current_node = IX_TreeNode.deserialize(index_handle.data_file_id, field_types,
+                        field_sizes, node_capacity, pf_manager.read_page(data_file_id, current_page))
+                    node_cache[data_file_id][current_page] = current_node
         else: raise IndexScanNextError(f'Encountered wrong comp_op.')
 
     

@@ -7,6 +7,8 @@ from typing import List, Dict, Tuple, Union
 import config as cf
 from paged_file.pf_manager import pf_manager
 from index_management.ix_index_handle import IX_IndexHandle
+from index_management.ix_tree_node import node_cache, flush_node_cache
+from index_management.ix_rid_bucket import bucket_cache, flush_bucket_cache
 
 
 class IX_Manager:
@@ -42,6 +44,8 @@ class IX_Manager:
             return self.opened_indicies[index_name]
         meta_file_id = pf_manager.open_file(index_name + cf.INDEX_META_SUFFIX)
         data_file_id = pf_manager.open_file(index_name + cf.INDEX_DATA_SUFFIX)
+        node_cache[data_file_id] = dict()
+        bucket_cache[data_file_id] = dict()
         index_handle = IX_IndexHandle(file_name, index_no, meta_file_id, data_file_id)
         self.opened_indicies[index_name] = index_handle
         return index_handle
@@ -51,6 +55,9 @@ class IX_Manager:
         ''' Close the index <file_name>.<index_no>
         '''
         index_name = f'{file_name}.{index_no}'
+        data_file_id = pf_manager.file_name_to_id[index_name + cf.INDEX_DATA_SUFFIX]
+        flush_node_cache(data_file_id)
+        flush_bucket_cache(data_file_id)
         pf_manager.close_file(index_name + cf.INDEX_META_SUFFIX)
         pf_manager.close_file(index_name + cf.INDEX_DATA_SUFFIX)
         handle:IX_IndexHandle = self.opened_indicies.pop(index_name, None)
