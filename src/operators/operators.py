@@ -4,7 +4,7 @@ from table.table import Table
 from operators.conditions import Condition, AlgebraCondition
 from common.common import *
 from operators.conditions import *
-
+from utils.bitwise import *
 
 class OperatorBase:
     """ Base class for all operators.
@@ -141,7 +141,8 @@ class TableScanNode(OperatorBase):
         return RecordList(cols, results)
 
     def add_condition(self, cond: Condition):
-        if(self._table.index_exist(cond.get_col_idx())):
+        index_no = list_int_to_int([cond.get_col_idx()])
+        if(self._table.index_exist(index_no)):
             self._inline_condition.append(cond)
         else:
             self._condition.append(cond)

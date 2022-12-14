@@ -11,7 +11,7 @@ from index_management.ix_manager import ix_manager
 from index_management.ix_index_scan import IX_IndexScan
 from operators.conditions import Condition, AlgebraCondition
 from utils.bitwise import *
-
+import time
 
 class Table():
     def check_foreign_key(self, val_list: np.ndarray):
@@ -279,6 +279,7 @@ class Table():
         
 
     def insert_records(self, fields_list: np.ndarray):
+        # For locality, insert all records first, then insert all indexes
         rids = []
         for each in fields_list:
             data: np.ndarray = self._file_handle.pack_record(each)
@@ -290,7 +291,7 @@ class Table():
             vals = fields_list[:, column_idx]
             for i in range(len(fields_list)):
                 handle.insert_entry(vals[i], rids[i])
-
+        
     def delete_record(self, record: Record):
         self._file_handle.remove_record(record.rid)
         for each in self._index_handles:
@@ -328,8 +329,9 @@ class Table():
         scanner = IX_IndexScan()
         rid_sets = []
         for each in conds:
+            index_no = list_int_to_int([each.get_col_idx()])
             scanner.open_scan(
-                self._index_handles[each.get_col_idx()], each._operator, each._value)
+                self._index_handles[index_no], each._operator, [each._value])
             rid_gen = scanner.next()
             rids = set()
             for each in rid_gen:
@@ -337,11 +339,11 @@ class Table():
             rid_sets.append(rids)
             scanner.close_scan()
 
-        res: Set[RM_Rid] = rid_sets[0]
+        res: Set[Tuple[RM_Rid, int]] = rid_sets[0]
         for each in rid_sets[1:]:
             res = res.intersection(each)
 
-        rm_records = [self._file_handle.get_record(each) for each in res]
+        rm_records = [self._file_handle.get_record(each[0]) for each in res]
         records = [Record(self._file_handle.unpack_record(
             each.data), each.rid) for each in rm_records]
         return records

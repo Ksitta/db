@@ -34,7 +34,7 @@ class Printer():
             self.print_edge(width)
             print("| ", end="")
             for i in range(len(self._records._header)):
-                print("%*s" % (width[i], self._records._header[i]), end=" | ")
+                print("%-*s" % (width[i], self._records._header[i]), end=" | ")
             print()
             self.print_edge(width)
             if len(self._records._results) == 0:
@@ -43,7 +43,7 @@ class Printer():
             for each in self._records._results:
                 print("| ", end="")
                 for i in range(len(each)):
-                    print("%*s" % (width[i], str(each[i])), end=" | ")
+                    print("%-*s" % (width[i], str(each[i])), end=" | ")
                 print()
             self.print_edge(width)
             return
@@ -62,9 +62,9 @@ class Printer():
             print("| ", end="")
             for i in range(len(self._records.columns)):
                 if self._records.columns[i].aggregator:
-                    print("%*s" % (width[i], self._records.columns[i].aggregator.name + "(" + self._records.columns[i].col_name + ")"), end=" | ")
+                    print("%-*s" % (width[i], self._records.columns[i].aggregator.name + "(" + self._records.columns[i].col_name + ")"), end=" | ")
                 else:
-                    print("%*s" % (width[i], self._records.columns[i].col_name), end=" | ")
+                    print("%-*s" % (width[i], self._records.columns[i].col_name), end=" | ")
             print()
             self.print_edge(width)
             if len(self._records.records) == 0:
@@ -73,6 +73,6 @@ class Printer():
             for each in self._records.records:
                 print("| ", end="")
                 for i in range(len(each.data)):
-                    print("%*s" % (width[i], str(each.data[i])), end=" | ")
+                    print("%-*s" % (width[i], str(each.data[i])), end=" | ")
                 print()
             self.print_edge(width)
