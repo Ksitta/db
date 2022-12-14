@@ -6,7 +6,7 @@ from typing import Tuple, List, Dict, Set, Union
 import config as cf
 from paged_file.pf_manager import pf_manager
 from record_management.rm_rid import RM_Rid
-from index_management.ix_tree_node import IX_TreeNodeHeader, IX_TreeNode
+from index_management.ix_tree_node import IX_TreeNodeHeader, IX_TreeNode, node_cache
 from errors.err_index_management import *
 
 
@@ -71,8 +71,11 @@ class IX_IndexHandle:
         field_types = [field[0] for field in fields]
         field_sizes = [field[1] for field in fields]
         while True:
-            current_node = IX_TreeNode.deserialize(self.data_file_id, field_types, field_sizes,
-                meta['node_capacity'], pf_manager.read_page(self.data_file_id, current_page))
+            current_node = node_cache.get((self.data_file_id, current_page))
+            if current_node is None:
+                current_node = IX_TreeNode.deserialize(self.data_file_id, field_types, field_sizes,
+                    meta['node_capacity'], pf_manager.read_page(self.data_file_id, current_page))
+                node_cache[(self.data_file_id, current_page)] = current_node
             if current_node.header.node_type != cf.NODE_TYPE_INTER: break
             current_page = current_node.header.first_child
         if current_node.header.node_type != cf.NODE_TYPE_LEAF:
@@ -89,8 +92,11 @@ class IX_IndexHandle:
         field_types = [field[0] for field in fields]
         field_sizes = [field[1] for field in fields]
         while True:
-            current_node = IX_TreeNode.deserialize(self.data_file_id, field_types, field_sizes,
-                meta['node_capacity'], pf_manager.read_page(self.data_file_id, current_page))
+            current_node = node_cache.get((self.data_file_id, current_page))
+            if current_node is None:
+                current_node = IX_TreeNode.deserialize(self.data_file_id, field_types, field_sizes,
+                    meta['node_capacity'], pf_manager.read_page(self.data_file_id, current_page))
+                node_cache[(self.data_file_id, current_page)] = current_node
             if current_node.header.node_type != cf.NODE_TYPE_INTER: break
             entry_number = current_node.header.entry_number
             current_page = current_node.get_entry(entry_number-1).page_no
@@ -109,8 +115,11 @@ class IX_IndexHandle:
         field_sizes = [field[1] for field in fields]
         ancestors = []
         while True:
-            current_node = IX_TreeNode.deserialize(self.data_file_id, field_types, field_sizes,
-                meta['node_capacity'], pf_manager.read_page(self.data_file_id, current_page))
+            current_node = node_cache.get((self.data_file_id, current_page))
+            if current_node is None:
+                current_node = IX_TreeNode.deserialize(self.data_file_id, field_types, field_sizes,
+                    meta['node_capacity'], pf_manager.read_page(self.data_file_id, current_page))
+                node_cache[(self.data_file_id, current_page)] = current_node
             if current_node.header.node_type != cf.NODE_TYPE_INTER: break
             ancestors.append(current_page)
             child_idx = current_node.search_child_idx(field_value)

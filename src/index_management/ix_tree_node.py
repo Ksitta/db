@@ -10,6 +10,9 @@ from index_management.ix_rid_bucket import IX_RidBucket
 from errors.err_index_management import *
 
 
+node_cache = {}
+
+
 class IX_TreeNodeHeader:
     
     
@@ -277,8 +280,10 @@ class IX_TreeNode:
         ''' Sync this node into disk.
         '''
         if not self.data_modified: return
-        pf_manager.write_page(self.file_id, self.header.page_no, self.serialize())
+        # pf_manager.write_page(self.file_id, self.header.page_no, self.serialize())
+        # self.data_modified = False
         self.data_modified = False
+        node_cache[(self.file_id, self.header.page_no)] = self
         
     
     def print_subtree(self, depth=0):
@@ -395,8 +400,11 @@ class IX_TreeNode:
             new_node.header.prev_sib = header.page_no
             new_node.header.next_sib = header.next_sib
             if header.next_sib != cf.INVALID:
-                next_node = IX_TreeNode.deserialize(file_id, field_types, field_sizes,
-                    node_capacity, pf_manager.read_page(file_id, header.next_sib))
+                next_node = node_cache.get((file_id, header.next_sib))
+                if next_node is None:
+                    next_node = IX_TreeNode.deserialize(file_id, field_types, field_sizes,
+                        node_capacity, pf_manager.read_page(file_id, header.next_sib))
+                    node_cache[(file_id, header.next_sib)] = next_node
                 next_node.header.prev_sib = new_page
                 next_node.data_modified = True
                 next_node.sync()
@@ -424,8 +432,11 @@ class IX_TreeNode:
                 new_root.data_modified = True
                 new_root.sync()
             else: # current node is not root, insert upward recursively
-                up_node = IX_TreeNode.deserialize(file_id, field_types, field_sizes,
-                    node_capacity, pf_manager.read_page(file_id, ancestors[-1]))
+                up_node = node_cache.get((file_id, ancestors[-1]))
+                if up_node is None:
+                    up_node = IX_TreeNode.deserialize(file_id, field_types, field_sizes,
+                        node_capacity, pf_manager.read_page(file_id, ancestors[-1]))
+                    node_cache[(file_id, ancestors[-1])] = up_node
                 up_node.insert(up_field_values, up_page_no, up_slot_no, up_verbose, ancestors[:-1])
         self.data[:header_size] = header.serialize()
         self.data_modified = True
@@ -501,6 +512,14 @@ class IX_TreeNode:
             if bucket.header.next_page == cf.INVALID: break
             bucket_page = bucket.header.next_page
         return res
+    
+
+def flush_node_cache():
+    ''' Sync all nodes in node cache to pf_manager.
+    '''
+    for (file_id, page_id), node in node_cache.items():
+        pf_manager.write_page(file_id, page_id, node.serialize())
+    node_cache.clear()
                 
     
 if __name__ == '__main__':

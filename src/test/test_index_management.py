@@ -6,7 +6,7 @@ import numpy as np
 import config as cf
 from paged_file.pf_manager import pf_manager
 from record_management.rm_rid import RM_Rid
-from index_management.ix_tree_node import IX_TreeNodeHeader, IX_TreeNode
+from index_management.ix_tree_node import IX_TreeNodeHeader, IX_TreeNode, flush_node_cache
 from index_management.ix_index_handle import IX_IndexHandle
 from index_management.ix_index_scan import IX_IndexScan
 from index_management.ix_manager import ix_manager
@@ -94,6 +94,7 @@ def test_index_remove():
     print(f'### remove time cost: {(toc-tic)*1000:.3f} ms')
     print(f'NODE_SERIALIZE_CNT: {cf.NODE_SERIALIZE_CNT}')
     print(f'NODE_DESERIALIZE_CNT: {cf.NODE_DESERIALIZE_CNT}')
+    flush_node_cache()
     scanned1 = np.zeros((N*M)//2, dtype=values.dtype) - 1
     scanned2 = scanned1.copy()
     index_scan = IX_IndexScan()
