@@ -66,11 +66,25 @@ class AlgebraCondition(Condition):
 
 
 class JoinCondition(Condition):
-    def __init__(self, left_col: Col, right_col: Col):
+    def __init__(self, left_col: Col, right_col: Col, name : str):
         self._left_col = left_col
         self._right_col = right_col
+        self._name = name
 
-    def fit(self, left_record: Record, right_record: Record) -> bool:
-        if(left_record.data[self._left_col] == right_record.data[self._right_col]):
-            return True
-        return False
+    def get_name(self):
+        return self._name
+    
+    def get_left_col(self):
+        return self._left_col
+
+    def get_right_col(self):
+        return self._right_col
+
+    def set_ldx(self, idx: int):
+        self._left_idx = idx
+
+    def set_rdx(self, idx: int):
+        self._right_idx = idx
+
+    def fit(self, record: Record) -> bool:
+        return (record.data[self._left_idx] == record.data[self._right_idx])

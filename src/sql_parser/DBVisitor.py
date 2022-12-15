@@ -122,17 +122,23 @@ class DBVisitor(SQLVisitor):
         for each in idents:
             self._table_scan[each] = TableScanNode(sm_manager.get_table(each))
 
-        self._table_join: Dict[str, JoinCondition] = {}
+        self._table_join: List[JoinCondition] = []
 
         if(ctx.where_and_clause()):
             ctx.where_and_clause().accept(self)
 
-        for each in self._table_join:
-            [t1, t2] = each.split(".")
+        for cond in self._table_join:
+            [t1, t2] = cond.get_name().split(".")
             t1 = djset.find(t1)
             t2 = djset.find(t2)
+            if(t1 == t2):
+                node = self._table_scan[t1]
+                cond.set_ldx(node.get_column_idx(cond.get_left_col()))
+                cond.set_rdx(node.get_column_idx(cond.get_right_col()))
+                filternode = FilterNode(node, cond)
+                self._table_scan[t1] = filternode
+                continue
             djset.union(t1, t2)
-            cond = self._table_join[each]
             dst = djset.find(t1)
             self._table_scan[dst] = JoinNode(self._table_scan[t1], self._table_scan[t2], cond)
 
@@ -276,8 +282,8 @@ class DBVisitor(SQLVisitor):
         op = ctx.operator_().accept(self)
         exp = ctx.expression().accept(self)
         if (type(exp) is Col):
-            cond = JoinCondition(col, exp)
-            self._table_join[col.table_name + '.' + exp.table_name] = cond
+            cond = JoinCondition(col, exp, col.table_name + "." + exp.table_name)
+            self._table_join.append(cond)
             return
         if (col.table_name is None):
             col.table_name = sm_manager.get_table_name(col.col_name, self._table_names)

@@ -25,27 +25,29 @@ class Printer():
             self.print_edge(width)
             return
         if (type(self._records) is Result):
-            for each in self._records._header:
+            for each in self._records.header:
                 width.append(len(each))
-            for each in self._records._results:
+            for each in self._records.results:
                 for i in range(len(each)):
                     width[i] = max(width[i], len(str(each[i])))
             
             self.print_edge(width)
             print("| ", end="")
-            for i in range(len(self._records._header)):
-                print("%-*s" % (width[i], self._records._header[i]), end=" | ")
+            for i in range(len(self._records.header)):
+                print("%-*s" % (width[i], self._records.header[i]), end=" | ")
             print()
             self.print_edge(width)
-            if len(self._records._results) == 0:
+            if len(self._records.results) == 0:
                 return
-            self._rows = len(self._records._results)
-            for each in self._records._results:
+            self._rows = len(self._records.results)
+            for each in self._records.results:
                 print("| ", end="")
                 for i in range(len(each)):
                     print("%-*s" % (width[i], str(each[i])), end=" | ")
                 print()
             self.print_edge(width)
+            for each in self._records.addition:
+                print(each)
             return
         
         if (type(self._records) is RecordList):

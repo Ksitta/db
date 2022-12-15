@@ -13,11 +13,13 @@ class Col:
         
 
 class Result():
-    def __init__(self, header: list, results: list) -> None:
-        self._header = header
-        self._results = results
+    def __init__(self, header: list, results: list, addition: list) -> None:
+        self.header = header
+        self.results = results
+        self.addition = addition
 
-
+    def set_addition(self, addition: list):
+        self.addition = addition
 
 class Column():
     def __init__(self, name: str, type: int, size: int, nullable: bool, default_val=None) -> None:
@@ -38,7 +40,7 @@ class Record():
         return self.data[cnt]
 
     def concat(rec1: 'Record', rec2: 'Record') -> 'Record':
-        return Record(rec1.data + rec2.data, rec1.rid)
+        return Record(np.append(rec1.data, rec2.data), rec1.rid)
 
     def __radd__(self, other: 'Record') -> 'Record':
         return self.concat(other)
@@ -69,3 +71,4 @@ class RecordList():
                         return i
                 else:
                     return i
+        raise Exception("Column not found")

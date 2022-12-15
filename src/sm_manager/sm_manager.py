@@ -79,11 +79,11 @@ class SM_Manager():
         os.chdir(self._base_dir)
 
     def show_dbs(self):
-        return Result(["Databases"], [[each] for each in list(self._db_names)])
+        return Result(["Databases"], [[each] for each in list(self._db_names)], [])
 
     @require_using_db
     def show_tables(self):
-        return Result(["Tables"], [[each] for each in list(self._tables.keys())])
+        return Result(["Tables"], [[each] for each in list(self._tables.keys())], [])
 
     @require_using_db
     def create_table(self, rel_name: str, columns: List[Column], pk: List[str], fk: List[Dict]):
@@ -122,7 +122,59 @@ class SM_Manager():
             raise NoUsingDatabaseError((f'No database is opened'))
         if (rel_name not in self._tables):
             raise TableNotExistsError(rel_name)
-        return self._tables[rel_name].describe()
+        table = self._tables[rel_name]
+        res = table.describe()
+        addition = []
+        pk = table.get_pk()
+        fk = table.get_fk()
+        columns = table.get_columns()
+        if (len(pk) != 0):
+            names = [columns[i].name for i in pk]
+            item = "PRIMARY KEY ("
+            i = 0
+            for each in names:
+                if (i != 0):
+                    item += ", "
+                item += each
+                i += 1
+            item += ")"
+            addition.append(item)
+        for each in fk:
+            local_names = [columns[i[0]].name for i in each['foreign_key_pairs']]
+            target_table: Table = self._tables[each['target_table_name']]
+            target_col = target_table.get_columns()
+            target_names = [target_col[i[1]].name for i in each['foreign_key_pairs']]
+            item = "FOREIGN KEY " + each['foreign_key_name'] + " ("
+            i = 0
+            for names in local_names:
+                if (i != 0):
+                    item += ", "
+                item += names
+                i += 1
+            item += ") REFERENCES " + each['target_table_name'] + " ("
+            i = 0
+            for names in target_names:
+                if (i != 0):
+                    item += ", "
+                item += names
+                i += 1
+            item += ")"
+            addition.append(item)
+        indexes = table.get_index()
+        for each in indexes:
+            item = "INDEX ("
+            col_idx = int_to_list_int(each)
+            names = [columns[i].name for i in col_idx]
+            i = 0
+            for name in names:
+                if (i != 0):
+                    item += ", "
+                item += name
+                i += 1
+            item += ")"
+            addition.append(item)
+        res.set_addition(addition)
+        return res
 
     @require_using_db
     def drop_table(self, rel_name: str):
@@ -182,7 +234,7 @@ class SM_Manager():
             if(ref_cnt != 0):
                 raise ReferenceCountNotZeroError()
             table.delete_record(each)
-        
+
         fk = table.get_fk()
         vals = np.array([each.data for each in records.records], dtype=object)
         self._modify_ref_cnt(fk, vals, -1)

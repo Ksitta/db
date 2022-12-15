@@ -12,8 +12,12 @@ from index_management.ix_index_scan import IX_IndexScan
 from operators.conditions import Condition, AlgebraCondition
 from utils.bitwise import *
 import time
+from sm_manager import sm_manager
 
 class Table():
+    def get_index(self):
+        return self._index_handles.keys()
+
     def check_foreign_key(self, val_list: np.ndarray):
         index_no = list_int_to_int(self._fk)
         handle = self._index_handles[index_no]
@@ -94,6 +98,9 @@ class Table():
     def get_fk(self):
         return self._fk
 
+    def get_pk(self):
+        return self._pk
+
     def get_column_idx(self, col_name: str) -> int:
         for i in range(len(self._columns)):
             each = self._columns[i]
@@ -143,7 +150,7 @@ class Table():
             if i in self._pk:
                 key_type = "PRI"
             result.append([each.name, tp, each.size, key_type])
-        res = Result(["Name", "Type", "Size", "Key"], result)
+        res = Result(["Name", "Type", "Size", "Key"], result, [])
         return res
 
     def get_name(self) -> str:
