@@ -6,7 +6,7 @@ from typing import List, Dict, Tuple
 from config import *
 from operators.operators import *
 from common.disjointset import DisjointSet
-
+import random
 class DBVisitor(SQLVisitor):
     def visitProgram(self, ctx: SQLParser.ProgramContext):
         stmts = ctx.statement()
@@ -126,7 +126,6 @@ class DBVisitor(SQLVisitor):
 
         if(ctx.where_and_clause()):
             ctx.where_and_clause().accept(self)
-
         for cond in self._table_join:
             [t1, t2] = cond.get_name().split(".")
             t1 = djset.find(t1)
@@ -145,7 +144,11 @@ class DBVisitor(SQLVisitor):
         for each in idents[1:]:
             if (djset.is_connect(idents[0], each)):
                 continue
-            raise Exception("Not all tables are joined")
+            t1 = djset.find(idents[0])
+            t2 = djset.find(each)
+            djset.union(t1, t2)
+            dst = djset.find(t1)
+            self._table_scan[dst] = JoinNode(self._table_scan[t1], self._table_scan[t2], None)
 
         node = self._table_scan[djset.find(idents[0])]
 

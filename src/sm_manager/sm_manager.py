@@ -331,10 +331,28 @@ class SM_Manager():
         table.drop_pk()
 
     @require_using_db
-    def add_fk(self, rel_name: str, fk: Dict):
+    def add_fk(self, rel_name: str, fk_name: str, target_table_name: str, local_idents: List[str], target_idents: List[str]):
         if (rel_name not in self._tables):
             raise TableNotExistsError(rel_name)
+        if (target_table_name not in self._tables):
+            raise TableNotExistsError(target_table)
         table = self._tables[rel_name]
+        target_table = self._tables[target_table]
+        fk: Dict = {}
+        local_idents_idx = [table.get_column_idx(each) for each in local_idents]
+        target_idents_idx = [target_table.get_column_idx(each) for each in target_idents]
+        fk_pairs = list(zip(local_idents_idx, target_idents_idx))
+        fk["foreign_key_name"] = fk_name
+        fk["foreign_key_name_length"] = len(fk_name)
+        fk["target_table_name"] = target_table_name
+        fk["target_table_name_length"] = len(target_table_name)
+        fk["foreign_key_size"] = len(local_idents_idx)
+        fk["foreign_key_pairs"] = fk_pairs
+        target_pks = target_table.get_pk().copy()
+        target_pks.sort()
+        target_idents_idx.sort()
+        if (target_pks != target_idents_idx):
+            raise Exception("Foreign key can only reference primary key")
         table.add_fk(fk)
 
     @require_using_db

@@ -73,6 +73,7 @@ class Table():
 
         self._pk = pk
         self.sync_fk_pk()
+        self.create_index(pk, records)
 
     def add_fk(self, fk: Dict):
         for each in self._fk:
@@ -106,6 +107,7 @@ class Table():
             each = self._columns[i]
             if each.name == col_name:
                 return i
+        raise Exception("Column not found")
 
     def find_exist(self, idxes: List[int], value_idxes: List[int], values: np.ndarray) -> Set[RM_Rid]:
         scaner = IX_IndexScan()

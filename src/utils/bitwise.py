@@ -8,6 +8,8 @@ def list_int_to_int(l: List[int]) -> int:
     '''
     ret = 0
     for i in l:
+        if(i < 0):
+            return -1
         ret = 1 << i | ret
     return ret
 
