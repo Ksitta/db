@@ -33,8 +33,6 @@ def parser_command(line):
         printer.display()
     except Exception as e:
         print(repr(e))
-        print("==============")
-        print(traceback.format_exc())
 
 exiting = False
 
